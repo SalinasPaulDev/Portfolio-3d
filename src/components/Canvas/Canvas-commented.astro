@@ -1,0 +1,491 @@
+<!-- Canvas HTML donde se renderizará la escena 3D -->
+<canvas id="three-canvas"></canvas>
+
+<style>
+    /* Estilos para el canvas 3D */
+    #three-canvas {
+        position: fixed;        /* Posición fija en la pantalla */
+        top: 0;                 /* Pegado al borde superior */
+        left: 0;                /* Pegado al borde izquierdo */
+        z-index: -1;            /* Detrás de otros elementos */
+        width: 100vw;           /* Ancho completo de la ventana */
+        height: 100vh;          /* Alto completo de la ventana */
+        pointer-events: none;   /* No interfiere con clicks del usuario */
+    }
+</style>
+
+<script>
+    // Ignorar errores de TypeScript para imports de Three.js
+    // @ts-ignore
+    import * as THREE from 'three';                                    // Biblioteca principal de Three.js
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';  // Cargador de modelos GLTF
+
+    // ============================================
+    // CONFIGURACIÓN DE PARÁMETROS
+    // ============================================
+    const PARTICLES_PER_EDGE = 500;   // Cantidad de partículas por cada arista del objeto
+    const PARTICLES_PER_FACE = 1700; // Cantidad de partículas por cada cara triangular
+
+    // ============================================
+    // VARIABLES GLOBALES DE THREE.JS
+    // ============================================
+    let camera: THREE.PerspectiveCamera,    // Cámara que ve la escena
+        scene: THREE.Scene,                 // Escena 3D que contiene todos los objetos
+        renderer: THREE.WebGLRenderer;     // Motor de renderizado WebGL
+    let particleSystem: THREE.Points;      // Sistema de partículas principal
+    const clock = new THREE.Clock();       // Reloj para medir tiempo de animación
+
+    // Datos para controlar la animación de partículas
+    let animationData = {
+        verticesDown: 0,    // Contador de partículas que han caído
+        verticesUp: 0,      // Contador de partículas que han regresado
+        direction: 0,       // Dirección de animación: -1=caer, 1=subir, 0=inicial
+        speed: 15,          // Velocidad de movimiento de las partículas
+        delay: 200,         // Tiempo de espera entre animaciones
+        start: 150         // Delay inicial antes de empezar la animación
+    };
+
+    // ============================================
+    // INICIALIZACIÓN DE THREE.JS
+    // ============================================
+    // Obtener referencia al elemento canvas del HTML
+    const canvas = document.querySelector('#three-canvas');
+
+    // Crear cámara perspectiva
+    camera = new THREE.PerspectiveCamera(
+        75,                                    // Campo de visión en grados
+        window.innerWidth / window.innerHeight, // Relación de aspecto (ancho/alto)
+        0.1,                                  // Distancia mínima de renderizado
+        1000                                  // Distancia máxima de renderizado
+    );
+     camera.position.set(0, 0, 8);           // Posicionar cámara en (x=0, y=0, z=8)
+
+    // Crear escena 3D
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000104);  // Color de fondo azul muy oscuro
+    scene.fog = new THREE.FogExp2(0x000104, 0.05); // Niebla exponencial para profundidad
+     camera.lookAt(0, -4, 0);                  // Hacer que la cámara mire hacia el objeto más abajo
+
+    // Crear renderizador WebGL
+    renderer = new THREE.WebGLRenderer({ 
+        canvas: canvas as HTMLCanvasElement,  // Usar nuestro canvas HTML
+        antialias: true                       // Suavizado de bordes
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);  // Tamaño completo de ventana
+    renderer.setPixelRatio(window.devicePixelRatio);          // Optimizar para pantallas retina
+
+    // ============================================
+    // CONFIGURACIÓN DE ILUMINACIÓN
+    // ============================================
+    // Luz ambiental (ilumina todo uniformemente)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);  // Color blanco, intensidad 0.8
+    scene.add(ambientLight);
+
+    // Luz puntual (simula una bombilla)
+    const pointLight = new THREE.PointLight(0xffffff, 1.5);     // Color blanco, intensidad 1.5
+    pointLight.position.set(2, 2, 2);                          // Posición de la luz
+    scene.add(pointLight);
+
+    // ============================================
+    // CARGA DEL MODELO 3D
+    // ============================================
+    const loader = new GLTFLoader();  // Cargador para archivos GLTF/GLB
+
+    // Cargar el modelo 3D desde el archivo
+    loader.load(
+        '/dev.glb',                    // Ruta del archivo del modelo
+        function(gltf) {                // Función que se ejecuta cuando se carga exitosamente
+            console.log('✅ Modelo cargado');
+            
+             // Reducir el tamaño del objeto a la mitad
+             gltf.scene.scale.setScalar(0.5);
+             
+             // Centrar el objeto verticalmente moviéndolo hacia abajo
+             gltf.scene.position.set(0, -4, 0);
+            
+            // Generar posiciones de partículas basadas en el modelo
+            const positions = generateEdgeParticles(gltf.scene);
+            
+            // Verificar que se generaron partículas
+            if (positions.count === 0) {
+                console.error('❌ No se encontraron vértices');
+                return;
+            }
+            
+            console.log(`📊 Partículas generadas: ${positions.count}`);
+            // Crear el sistema de partículas con las posiciones generadas
+            createParticleSystem(positions);
+        },
+        function(xhr) {                 // Función de progreso de carga
+            const percent = (xhr.loaded / xhr.total) * 100;
+            console.log(`⏳ Cargando: ${percent.toFixed(2)}%`);
+        },
+        function(error) {               // Función de error
+            console.error('❌ Error al cargar:', error);
+        }
+    );
+
+    // ============================================
+    // GENERACIÓN DE PARTÍCULAS EN ARISTAS Y CARAS
+    // ============================================
+    function generateEdgeParticles(object: THREE.Object3D): THREE.BufferAttribute {
+        const allPoints: number[] = [];  // Array para almacenar todas las posiciones de partículas
+        let edgeCount = 0;               // Contador de aristas procesadas
+        let faceCount = 0;               // Contador de caras procesadas
+
+        // Recorrer todos los objetos hijos del modelo 3D
+        object.traverse(function(child) {
+            // Verificar si el objeto hijo es un mesh (objeto 3D con geometría)
+            if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry) {
+                const mesh = child as THREE.Mesh;           // Convertir a tipo Mesh
+                const geometry = mesh.geometry;             // Obtener la geometría del mesh
+                const positions = geometry.attributes.position;  // Posiciones de vértices
+                const index = geometry.index;               // Índices de vértices (si existe)
+                
+                if (!positions) return;  // Salir si no hay posiciones
+
+                // Obtener matriz de transformación del mesh (rotación, escala, posición)
+                const matrix = mesh.matrixWorld;
+
+                // ============================================
+                // 1. GENERAR PARTÍCULAS EN ARISTAS
+                // ============================================
+                // Usar EdgesGeometry para extraer solo las aristas del modelo
+                const edges = new THREE.EdgesGeometry(geometry, 1);
+                const edgePositions = edges.attributes.position;
+                
+                console.log(`📐 Aristas detectadas: ${edgePositions.count / 2}`);
+                
+                // Procesar cada arista (cada par de vértices consecutivos)
+                for (let i = 0; i < edgePositions.count; i += 2) {
+                    edgeCount++;
+                    
+                    // Obtener los dos vértices que forman la arista
+                    const v1 = new THREE.Vector3(
+                        edgePositions.getX(i),
+                        edgePositions.getY(i),
+                        edgePositions.getZ(i)
+                    ).applyMatrix4(matrix);  // Aplicar transformaciones del mesh
+                    
+                    const v2 = new THREE.Vector3(
+                        edgePositions.getX(i + 1),
+                        edgePositions.getY(i + 1),
+                        edgePositions.getZ(i + 1)
+                    ).applyMatrix4(matrix);
+                    
+                    // Generar partículas a lo largo de esta arista
+                    sampleEdge(v1, v2, allPoints, PARTICLES_PER_EDGE);
+                }
+
+                // ============================================
+                // 2. GENERAR PARTÍCULAS EN CARAS
+                // ============================================
+                const indices = index ? index.array : null;  // Array de índices si existe
+                const positionCount = positions.count;      // Total de vértices
+                
+                if (indices) {
+                    // Geometría indexada: los índices apuntan a vértices reutilizables
+                    for (let i = 0; i < indices.length; i += 3) {
+                        faceCount++;
+                        
+                        // Obtener los tres índices que forman un triángulo
+                        const i1 = indices[i];
+                        const i2 = indices[i + 1];
+                        const i3 = indices[i + 2];
+                        
+                        // Obtener los tres vértices del triángulo
+                        const v1 = new THREE.Vector3(
+                            positions.getX(i1),
+                            positions.getY(i1),
+                            positions.getZ(i1)
+                        ).applyMatrix4(matrix);
+                        
+                        const v2 = new THREE.Vector3(
+                            positions.getX(i2),
+                            positions.getY(i2),
+                            positions.getZ(i2)
+                        ).applyMatrix4(matrix);
+                        
+                        const v3 = new THREE.Vector3(
+                            positions.getX(i3),
+                            positions.getY(i3),
+                            positions.getZ(i3)
+                        ).applyMatrix4(matrix);
+                        
+                        // Generar partículas dentro de esta cara triangular
+                        sampleFace(v1, v2, v3, allPoints, PARTICLES_PER_FACE);
+                    }
+                } else {
+                    // Geometría no indexada: cada 3 vértices consecutivos forman un triángulo
+                    for (let i = 0; i < positionCount; i += 3) {
+                        faceCount++;
+                        
+                        // Obtener los tres vértices consecutivos
+                        const v1 = new THREE.Vector3(
+                            positions.getX(i),
+                            positions.getY(i),
+                            positions.getZ(i)
+                        ).applyMatrix4(matrix);
+                        
+                        const v2 = new THREE.Vector3(
+                            positions.getX(i + 1),
+                            positions.getY(i + 1),
+                            positions.getZ(i + 1)
+                        ).applyMatrix4(matrix);
+                        
+                        const v3 = new THREE.Vector3(
+                            positions.getX(i + 2),
+                            positions.getY(i + 2),
+                            positions.getZ(i + 2)
+                        ).applyMatrix4(matrix);
+                        
+                        // Generar partículas dentro de esta cara triangular
+                        sampleFace(v1, v2, v3, allPoints, PARTICLES_PER_FACE);
+                    }
+                }
+            }
+        });
+
+        // Mostrar estadísticas de generación
+        console.log(`📏 Total de aristas: ${edgeCount}`);
+        console.log(`🔺 Total de caras: ${faceCount}`);
+        console.log(`✨ Partículas por arista: ${PARTICLES_PER_EDGE}`);
+        console.log(`✨ Partículas por cara: ${PARTICLES_PER_FACE}`);
+        
+        // Retornar BufferAttribute vacío si no se generaron partículas
+        if (allPoints.length === 0) {
+            return new THREE.BufferAttribute(new Float32Array(0), 3);
+        }
+        
+        // Retornar BufferAttribute con todas las posiciones de partículas
+        return new THREE.BufferAttribute(new Float32Array(allPoints), 3);
+    }
+
+    // ============================================
+    // GENERACIÓN DE PARTÍCULAS EN ARISTAS
+    // ============================================
+    function sampleEdge(
+        v1: THREE.Vector3,    // Primer vértice de la arista
+        v2: THREE.Vector3,    // Segundo vértice de la arista
+        points: number[],      // Array donde guardar las posiciones
+        count: number         // Cantidad de partículas a generar
+    ): void {
+        // Añadir el punto inicial (primer vértice)
+        points.push(v1.x, v1.y, v1.z);
+        
+        // Generar puntos intermedios usando interpolación lineal
+        for (let i = 1; i < count - 1; i++) {
+            const t = i / (count - 1);  // Factor de interpolación (0 a 1)
+            
+            // Interpolación lineal: P = v1 + t * (v2 - v1)
+            const point = new THREE.Vector3();
+            point.lerpVectors(v1, v2, t);  // Interpolar entre v1 y v2
+            
+            points.push(point.x, point.y, point.z);
+        }
+        
+        // Añadir el punto final (segundo vértice)
+        points.push(v2.x, v2.y, v2.z);
+    }
+
+    // ============================================
+    // GENERACIÓN DE PARTÍCULAS EN CARAS TRIANGULARES
+    // ============================================
+    function sampleFace(
+        v1: THREE.Vector3,    // Primer vértice del triángulo
+        v2: THREE.Vector3,    // Segundo vértice del triángulo
+        v3: THREE.Vector3,    // Tercer vértice del triángulo
+        points: number[],      // Array donde guardar las posiciones
+        count: number          // Cantidad de partículas a generar
+    ): void {
+        // Generar puntos distribuidos uniformemente dentro del triángulo
+        for (let i = 0; i < count; i++) {
+            // Generar coordenadas baricéntricas aleatorias
+            let r1 = Math.random();  // Peso del primer vértice
+            let r2 = Math.random();  // Peso del segundo vértice
+            
+            // Si r1 + r2 > 1, reflejar el punto al otro lado del triángulo
+            // Esto asegura distribución uniforme
+            if (r1 + r2 > 1) {
+                r1 = 1 - r1;
+                r2 = 1 - r2;
+            }
+            
+            const r3 = 1 - r1 - r2;  // Peso del tercer vértice
+            
+            // Calcular el punto usando coordenadas baricéntricas
+            // P = r1*v1 + r2*v2 + r3*v3
+            const point = new THREE.Vector3();
+            point.addScaledVector(v1, r1);  // Sumar v1 escalado por r1
+            point.addScaledVector(v2, r2);  // Sumar v2 escalado por r2
+            point.addScaledVector(v3, r3);  // Sumar v3 escalado por r3
+            
+            points.push(point.x, point.y, point.z);
+        }
+    }
+
+    // ============================================
+    // CREACIÓN DEL SISTEMA DE PARTÍCULAS
+    // ============================================
+    function createParticleSystem(positions: THREE.BufferAttribute) {
+        // Crear geometría para las partículas
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', positions.clone());        // Posiciones actuales
+        geometry.setAttribute('initialPosition', positions.clone()); // Posiciones iniciales (para animación)
+        (geometry.attributes.position as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
+        
+        // Crear material para las partículas
+        const material = new THREE.PointsMaterial({
+            size: 0.025,             // Tamaño de cada partícula
+            color: 0x00ffff,         // Color cian brillante
+            transparent: true,        // Permitir transparencia
+            opacity: 0.85,           // Opacidad (85%)
+            sizeAttenuation: true    // Las partículas se ven más pequeñas con la distancia
+        });
+        
+        // Crear el sistema de partículas
+        particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);  // Añadir a la escena
+        
+        console.log('✨ Sistema de partículas creado');
+    }
+
+    // ============================================
+    // BUCLE DE ANIMACIÓN PRINCIPAL
+    // ============================================
+    function animate() {
+        requestAnimationFrame(animate);  // Programar el siguiente frame
+        
+        // Actualizar partículas si el sistema existe
+        if (particleSystem) {
+            updateParticles();
+        }
+        
+        // Renderizar la escena desde la perspectiva de la cámara
+        renderer.render(scene, camera);
+    }
+
+    // ============================================
+    // ACTUALIZACIÓN DE ANIMACIÓN DE PARTÍCULAS
+    // ============================================
+    function updateParticles() {
+        // Calcular delta time (tiempo transcurrido desde el último frame)
+        let delta = 10 * clock.getDelta();
+        delta = delta < 2 ? delta : 2;  // Limitar delta para evitar saltos grandes
+        
+        // Rotación lenta del objeto completo
+        particleSystem.rotation.y += 0.001 * delta;
+        
+        // Obtener referencias a las posiciones de partículas
+        const positions = particleSystem.geometry.attributes.position;
+        const initialPositions = particleSystem.geometry.attributes.initialPosition;
+        const count = positions.count;
+        
+        // Control de delay inicial
+        if (animationData.start > 0) {
+            animationData.start -= 1;  // Decrementar delay inicial
+        } else {
+            if (animationData.direction === 0) {
+                animationData.direction = -1;  // Empezar animación hacia abajo
+            }
+        }
+        
+        // Procesar cada partícula individualmente
+        for (let i = 0; i < count; i++) {
+            // Obtener posición actual de la partícula
+            const px = positions.getX(i);
+            const py = positions.getY(i);
+            const pz = positions.getZ(i);
+            
+            // ============================================
+            // ANIMACIÓN HACIA ABAJO (PARTÍCULAS CAYENDO)
+            // ============================================
+            if (animationData.direction < 0) {
+                if (py > -2) {  // Si la partícula no ha caído lo suficiente
+                    // Añadir movimiento aleatorio hacia abajo
+                    positions.setXYZ(
+                        i,
+                        px + 1.5 * (0.5 - Math.random()) * animationData.speed * delta,  // Movimiento X aleatorio
+                        py + 3.0 * (0.25 - Math.random()) * animationData.speed * delta,  // Movimiento Y hacia abajo
+                        pz + 1.5 * (0.5 - Math.random()) * animationData.speed * delta   // Movimiento Z aleatorio
+                    );
+                } else {
+                    animationData.verticesDown += 1;  // Contar partícula que llegó abajo
+                }
+            }
+            
+            // ============================================
+            // ANIMACIÓN HACIA ARRIBA (PARTÍCULAS REGRESANDO)
+            // ============================================
+            if (animationData.direction > 0) {
+                // Obtener posición inicial de la partícula
+                const ix = initialPositions.getX(i);
+                const iy = initialPositions.getY(i);
+                const iz = initialPositions.getZ(i);
+                
+                // Calcular distancia a la posición inicial
+                const dx = Math.abs(px - ix);
+                const dy = Math.abs(py - iy);
+                const dz = Math.abs(pz - iz);
+                const d = dx + dy + dz;
+                
+                if (d > 0.1) {  // Si no está cerca de su posición inicial
+                    // Mover hacia la posición inicial con velocidad variable
+                    positions.setXYZ(
+                        i,
+                        px - (px - ix) / dx * animationData.speed * delta * (0.85 - Math.random()),
+                        py - (py - iy) / dy * animationData.speed * delta * (1 + Math.random()),
+                        pz - (pz - iz) / dz * animationData.speed * delta * (0.85 - Math.random())
+                    );
+                } else {
+                    animationData.verticesUp += 1;  // Contar partícula que regresó
+                }
+            }
+        }
+        
+        // ============================================
+        // CONTROL DE TRANSICIONES DE ANIMACIÓN
+        // ============================================
+        // Cuando todas las partículas han caído
+        if (animationData.verticesDown >= count) {
+            if (animationData.delay <= 0) {
+                animationData.direction = 1;      // Cambiar a dirección hacia arriba
+                animationData.speed = 5;          // Velocidad más lenta para regreso
+                animationData.verticesDown = 0;   // Resetear contador
+                animationData.delay = 320;        // Delay antes de empezar a subir
+            } else {
+                animationData.delay -= 1;          // Decrementar delay
+            }
+        }
+        
+        // Cuando todas las partículas han regresado
+        if (animationData.verticesUp >= count) {
+            if (animationData.delay <= 0) {
+                animationData.direction = -1;     // Cambiar a dirección hacia abajo
+                animationData.speed = 15;         // Velocidad más rápida para caída
+                animationData.verticesUp = 0;     // Resetear contador
+                animationData.delay = 120;        // Delay antes de empezar a caer
+            } else {
+                animationData.delay -= 1;         // Decrementar delay
+            }
+        }
+        
+        // Marcar que las posiciones necesitan actualizarse en el GPU
+        positions.needsUpdate = true;
+    }
+
+    // ============================================
+    // MANEJO DE REDIMENSIONAMIENTO DE VENTANA
+    // ============================================
+    window.addEventListener('resize', () => {
+        // Actualizar relación de aspecto de la cámara
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();  // Aplicar cambios a la cámara
+        
+        // Actualizar tamaño del renderizador
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Iniciar el bucle de animación
+    animate();
+</script>

@@ -1,0 +1,646 @@
+<canvas id="three-canvas"></canvas>
+
+<style>
+    #three-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: -1;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+    }
+</style>
+
+<script>
+    // @ts-ignore
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+    import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+    import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+    import { gsap } from "gsap";
+    import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+    // Register the plugin
+    gsap.registerPlugin(ScrollTrigger);
+
+    // ============================================
+    // TIPOS DE ANIMACIÓN PARA TRIÁNGULOS
+    // ============================================
+    enum AnimationType {
+        CIRCULAR = 'circular',           // Movimiento circular en X-Y
+        VERTICAL_WAVE = 'vertical_wave', // Sube y baja suavemente
+        DIAGONAL = 'diagonal',           // Movimiento diagonal suave
+        SPIRAL = 'spiral',               // Espiral suave
+        DRIFT = 'drift'                  // Deriva lenta en múltiples ejes
+    }
+
+    // ============================================
+    // CONFIGURACIÓN
+    // ============================================
+    // const PARTICLES_PER_EDGE = 10;
+    const PARTICLES_PER_FACE = 100;
+
+    // 1. Crear dos render targets (como dos "pantallas" virtuales)
+    const renderTargetBackground = new THREE.WebGLRenderTarget(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    const renderTargetForeground = new THREE.WebGLRenderTarget(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    // ============================================
+    // VARIABLES GLOBALES
+    // ============================================
+    let camera: THREE.PerspectiveCamera, scene: THREE.Scene, renderer: THREE.WebGLRenderer;
+    let composer: EffectComposer;
+    let particleSystem: THREE.Points;
+    
+    // Variables para interacción con el mouse
+    const cameraTarget = new THREE.Vector3(0, 2, 0);
+    const mousePosition = { x: 0, y: 0 };
+    const targetMousePosition = { x: 0, y: 0 };
+    const maxLookOffset = 0.01; // Reducido para limitar el rango de movimiento
+    const mouseSensitivity = 0.001; // Muy reducido para movimiento sutil y pesado
+    
+    // Variables para el movimiento de los triángulos basado en el mouse
+    const triangleMouseOffset = { x: 0, y: 0 };
+    const targetTriangleMouseOffset = { x: 0, y: 0 };
+    const triangleMouseSensitivity = 1.5; // Sensibilidad para el movimiento de triángulos
+    
+    const floatingTriangles: Array<{
+        object: THREE.Group;
+        animationType: AnimationType;
+        initialX: number;
+        initialY: number;
+        initialZ: number;
+        circleRadius: number;
+        circleSpeed: number;
+        circleAngleOffset: number;
+        verticalAmplitude: number;
+        verticalSpeed: number;
+        verticalOffset: number;
+        depthAmplitude: number;
+        depthSpeed: number;
+        depthOffset: number;
+        initialRotationX: number;
+        initialRotationY: number;
+        initialRotationZ: number;
+        rotationSpeedX: number;
+        rotationSpeedY: number;
+        rotationSpeedZ: number;
+        rotationAmplitudeX: number;
+        rotationAmplitudeY: number;
+        rotationAmplitudeZ: number;
+        timeOffsetX: number;
+        timeOffsetY: number;
+        timeOffsetZ: number;
+    }> = [];
+
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    const canvas = document.querySelector('#three-canvas');
+    const body = document.querySelector('#main');
+    let rotationByProgress: number = 0;
+
+    ScrollTrigger.create({
+        trigger: body,
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: true,
+        markers: true,
+        onUpdate: (self) => {
+            rotationByProgress = parseFloat(self.progress.toFixed(3));
+        }
+    });
+
+    camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+    );
+    camera.position.set(0, 0, 8);
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000104);
+    scene.fog = new THREE.FogExp2(0x000104, 0.08);
+    camera.lookAt(0, 2, 0);
+
+    renderer = new THREE.WebGLRenderer({ 
+        canvas: canvas as HTMLCanvasElement,
+        antialias: true
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    // ============================================
+    // POST-PROCESSING
+    // ============================================
+    composer = new EffectComposer(renderer);
+    
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+    
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.4,
+        0.4,
+        0.95
+    );
+    composer.addPass(bloomPass);
+
+    const bokehPass = new BokehPass(scene, camera, {
+        focus: 8.0,
+        aperture: 0.035,
+        maxblur: 0.003,
+    });
+    composer.addPass(bokehPass);
+
+    // ============================================
+    // INTERACCIÓN CON EL MOUSE
+    // ============================================
+    document.addEventListener('mousemove', (event) => {
+        const normalizedX = (event.clientX / window.innerWidth) * 2 - 1;
+        const normalizedY = -(event.clientY / window.innerHeight) * 2 + 1;
+        
+        targetMousePosition.x = normalizedX * mouseSensitivity;
+        targetMousePosition.y = normalizedY * mouseSensitivity;
+        
+        // Invertir el movimiento para los triángulos (opuesto al mouse)
+        targetTriangleMouseOffset.x = -normalizedX * triangleMouseSensitivity;
+        targetTriangleMouseOffset.y = -normalizedY * triangleMouseSensitivity;
+    });
+    
+    document.addEventListener('mouseleave', () => {
+        targetMousePosition.x = 0;
+        targetMousePosition.y = 0;
+        targetTriangleMouseOffset.x = 0;
+        targetTriangleMouseOffset.y = 0;
+    });
+
+    // ============================================
+    // LUCES
+    // ============================================
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    const pointLight = new THREE.PointLight(0xffffff, 1.5);
+    pointLight.position.set(2, 1, 2);
+    scene.add(pointLight);
+
+    // ============================================
+    // CARGAR MODELO PRINCIPAL
+    // ============================================
+    const loader = new GLTFLoader();
+
+    loader.load(
+        '/dev.glb',
+        function(gltf) {            
+            gltf.scene.scale.setScalar(0.2);
+            gltf.scene.position.set(0, 2, 0);
+            
+            const positions = generateEdgeParticles(gltf.scene);
+            
+            if (positions.count === 0) {
+                console.error('❌ No se encontraron vértices');
+                return;
+            }
+            
+            console.log(`📊 Partículas generadas: ${positions.count}`);
+            createParticleSystem(positions);
+        },
+        function(xhr) {
+            const percent = (xhr.loaded / xhr.total) * 100;
+            console.log(`⏳ Cargando: ${percent.toFixed(2)}%`);
+        },
+        function(error) {
+            console.error('❌ Error al cargar:', error);
+        }
+    );
+
+    // ============================================
+    // CARGAR TRIÁNGULOS FLOTANTES
+    // ============================================
+    loader.load('/triangles/py-lod7.glb', function(gltf) {
+        const trianglesColors = [0x96F7D2, 0xFFE100, 0xFFF1F1, 0x6F00FF];
+
+        const cameraDistance = 8;
+        const fov = 60;
+        const fovRad = (fov * Math.PI) / 180;
+        const aspect = window.innerWidth / window.innerHeight;
+        
+        const visibleHeight = 2 * Math.tan(fovRad / 2) * cameraDistance;
+        const visibleWidth = visibleHeight * aspect;
+        
+        const spreadX = visibleWidth * 1.5;
+        const spreadY = visibleHeight * 1.5;
+        const spreadZ = 15;
+        
+        const count = 90;
+        const gridSize = Math.ceil(Math.cbrt(count));
+        const gridDivisor = Math.max(1, gridSize - 1);
+        
+        // Tipos de animación disponibles
+        const animationTypes = Object.values(AnimationType);
+        
+        for (let i = 0; i < count; i++) {
+            const clone = gltf.scene.clone();
+            clone.scale.setScalar(Math.random() * 0.3 + 0.15); // Reducido un poco el tamaño
+            
+            const gridX = (i % gridSize);
+            const gridY = Math.floor((i / gridSize) % gridSize);
+            const gridZ = Math.floor(i / (gridSize * gridSize));
+            
+            const normalizedX = gridSize > 1 ? gridX / gridDivisor : 0.5;
+            const normalizedY = gridSize > 1 ? gridY / gridDivisor : 0.5;
+            const normalizedZ = gridSize > 1 ? gridZ / gridDivisor : 0.5;
+            
+            const baseX = normalizedX * spreadX - spreadX / 2;
+            const baseY = normalizedY * spreadY - spreadY / 2 + 2;
+            const baseZ = normalizedZ * spreadZ - spreadZ / 2;
+            
+            const randomOffset = 0.3;
+            const offsetX = (Math.random() - 0.5) * (spreadX / gridSize) * randomOffset;
+            const offsetY = (Math.random() - 0.5) * (spreadY / gridSize) * randomOffset;
+            const offsetZ = (Math.random() - 0.5) * (spreadZ / gridSize) * randomOffset;
+            
+            const finalX = baseX + offsetX;
+            const finalY = baseY + offsetY;
+            const finalZ = baseZ + offsetZ;
+            clone.position.set(finalX, finalY, finalZ);
+            
+            const initialRotX = Math.random() * Math.PI * 2;
+            const initialRotY = Math.random() * Math.PI * 2;
+            const initialRotZ = Math.random() * Math.PI * 2;
+            clone.rotation.set(initialRotX, initialRotY, initialRotZ);
+            
+            // Asignar tipo de animación aleatorio
+            const randomAnimationType = animationTypes[Math.floor(Math.random() * animationTypes.length)];
+            
+            const distanceFromCamera = camera.position.distanceTo(clone.position);
+            const minDistance = 5;
+            const maxDistance = 20;
+            const normalizedDistance = Math.max(0, Math.min(1, (distanceFromCamera - minDistance) / (maxDistance - minDistance)));
+            
+            const opacity = 1 - (normalizedDistance * 0.25);
+            const brightness = 1 - (normalizedDistance * 0.2);
+            
+            const baseColor = trianglesColors[Math.floor(Math.random() * trianglesColors.length)];
+            const color = new THREE.Color(baseColor);
+            
+            if (normalizedDistance > 0.6) {
+                color.multiplyScalar(brightness);
+            }
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: trianglesColors[Math.floor(Math.random() * trianglesColors.length)],
+                emissive: trianglesColors[Math.floor(Math.random() * trianglesColors.length)],
+                emissiveIntensity: opacity,
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            
+            clone.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                    (child as THREE.Mesh).material = material.clone();
+                }
+            });
+            
+            // Parámetros de animación más variados y suaves
+            const rotSpeedX = 0.08 + Math.random() * 0.15;
+            const rotSpeedY = 0.08 + Math.random() * 0.15;
+            const rotSpeedZ = 0.08 + Math.random() * 0.15;
+            
+            const rotAmpX = 0.2 + Math.random() * 0.5;
+            const rotAmpY = 0.2 + Math.random() * 0.5;
+            const rotAmpZ = 0.2 + Math.random() * 0.5;
+            
+            const circleRadius = 0.2 + Math.random() * 0.6;
+            const circleSpeed = 0.08 + Math.random() * 0.15;
+            const circleAngleOffset = Math.random() * Math.PI * 2;
+            
+            const verticalAmplitude = 0.5 + Math.random() * 1.5;
+            const verticalSpeed = 0.1 + Math.random() * 0.2;
+            const verticalOffset = Math.random() * Math.PI * 2;
+            
+            const depthAmplitude = 0.3 + Math.random() * 0.8;
+            const depthSpeed = 0.07 + Math.random() * 0.13;
+            const depthOffset = Math.random() * Math.PI * 2;
+            
+            const timeOffsetX = Math.random() * Math.PI * 2;
+            const timeOffsetY = Math.random() * Math.PI * 2;
+            const timeOffsetZ = Math.random() * Math.PI * 2;
+            
+            floatingTriangles.push({
+                object: clone,
+                animationType: randomAnimationType,
+                initialX: finalX,
+                initialY: finalY,
+                initialZ: finalZ,
+                circleRadius: circleRadius,
+                circleSpeed: circleSpeed,
+                circleAngleOffset: circleAngleOffset,
+                verticalAmplitude: verticalAmplitude,
+                verticalSpeed: verticalSpeed,
+                verticalOffset: verticalOffset,
+                depthAmplitude: depthAmplitude,
+                depthSpeed: depthSpeed,
+                depthOffset: depthOffset,
+                initialRotationX: initialRotX,
+                initialRotationY: initialRotY,
+                initialRotationZ: initialRotZ,
+                rotationSpeedX: rotSpeedX,
+                rotationSpeedY: rotSpeedY,
+                rotationSpeedZ: rotSpeedZ,
+                rotationAmplitudeX: rotAmpX,
+                rotationAmplitudeY: rotAmpY,
+                rotationAmplitudeZ: rotAmpZ,
+                timeOffsetX: timeOffsetX,
+                timeOffsetY: timeOffsetY,
+                timeOffsetZ: timeOffsetZ
+            });
+            
+            scene.add(clone);
+        }
+    });
+
+    // ============================================
+    // GENERAR PARTÍCULAS EN CARAS
+    // ============================================
+    function generateEdgeParticles(object: THREE.Object3D): THREE.BufferAttribute {
+        const allPoints: number[] = [];
+        let faceCount = 0;
+
+        object.traverse(function(child) {
+            if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry) {
+                const mesh = child as THREE.Mesh;
+                const geometry = mesh.geometry;
+                const positions = geometry.attributes.position;
+                const index = geometry.index;
+                
+                if (!positions) return;
+
+                const matrix = mesh.matrixWorld;
+
+                const indices = index ? index.array : null;
+                const positionCount = positions.count;
+                
+                if (indices) {
+                    for (let i = 0; i < indices.length; i += 3) {
+                        faceCount++;
+                        
+                        const i1 = indices[i];
+                        const i2 = indices[i + 1];
+                        const i3 = indices[i + 2];
+                        
+                        const v1 = new THREE.Vector3(
+                            positions.getX(i1),
+                            positions.getY(i1),
+                            positions.getZ(i1)
+                        ).applyMatrix4(matrix);
+                        
+                        const v2 = new THREE.Vector3(
+                            positions.getX(i2),
+                            positions.getY(i2),
+                            positions.getZ(i2)
+                        ).applyMatrix4(matrix);
+                        
+                        const v3 = new THREE.Vector3(
+                            positions.getX(i3),
+                            positions.getY(i3),
+                            positions.getZ(i3)
+                        ).applyMatrix4(matrix);
+                        
+                        sampleFace(v1, v2, v3, allPoints, PARTICLES_PER_FACE);
+                    }
+                } else {
+                    for (let i = 0; i < positionCount; i += 3) {
+                        faceCount++;
+                        
+                        const v1 = new THREE.Vector3(
+                            positions.getX(i),
+                            positions.getY(i),
+                            positions.getZ(i)
+                        ).applyMatrix4(matrix);
+                        
+                        const v2 = new THREE.Vector3(
+                            positions.getX(i + 1),
+                            positions.getY(i + 1),
+                            positions.getZ(i + 1)
+                        ).applyMatrix4(matrix);
+                        
+                        const v3 = new THREE.Vector3(
+                            positions.getX(i + 2),
+                            positions.getY(i + 2),
+                            positions.getZ(i + 2)
+                        ).applyMatrix4(matrix);
+                        
+                        sampleFace(v1, v2, v3, allPoints, PARTICLES_PER_FACE);
+                    }
+                }
+            }
+        });
+
+        console.log(`🔺 Total de caras: ${faceCount}`);
+        console.log(`✨ Partículas por cara: ${PARTICLES_PER_FACE}`);
+        
+        if (allPoints.length === 0) {
+            return new THREE.BufferAttribute(new Float32Array(0), 3);
+        }
+        
+        return new THREE.BufferAttribute(new Float32Array(allPoints), 3);
+    }
+
+    // ============================================
+    // SAMPLEAR PUNTOS EN CARAS
+    // ============================================
+    function sampleFace(
+        v1: THREE.Vector3,
+        v2: THREE.Vector3,
+        v3: THREE.Vector3,
+        points: number[],
+        count: number
+    ): void {
+        for (let i = 0; i < count; i++) {
+            let r1 = Math.random();
+            let r2 = Math.random();
+            
+            if (r1 + r2 > 1) {
+                r1 = 1 - r1;
+                r2 = 1 - r2;
+            }
+            
+            const r3 = 1 - r1 - r2;
+            
+            const point = new THREE.Vector3();
+            point.addScaledVector(v1, r1);
+            point.addScaledVector(v2, r2);
+            point.addScaledVector(v3, r3);
+            
+            points.push(point.x, point.y, point.z);
+        }
+    }
+
+    // ============================================
+    // CREAR SISTEMA DE PARTÍCULAS
+    // ============================================
+    function createParticleSystem(positions: THREE.BufferAttribute) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', positions.clone());
+        geometry.setAttribute('initialPosition', positions.clone());
+        (geometry.attributes.position as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
+        
+        const material = new THREE.PointsMaterial({
+            size: 0.025,
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.85,
+            sizeAttenuation: true
+        });
+        
+        particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+        
+        console.log('✨ Sistema de partículas creado');
+    }
+
+    // ============================================
+    // ANIMACIÓN
+    // ============================================
+    let time = 0;
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        time += 0.012;
+        
+        const lerpFactor = 0.003; // Muy reducido para movimiento pesado y sutil de la cámara
+        mousePosition.x += (targetMousePosition.x - mousePosition.x) * lerpFactor;
+        mousePosition.y += (targetMousePosition.y - mousePosition.y) * lerpFactor;
+        
+        // Interpolación suave (ease-in-out) para el offset de los triángulos
+        const triangleLerpFactor = 0.05; // Factor más alto para respuesta más rápida pero suave
+        triangleMouseOffset.x += (targetTriangleMouseOffset.x - triangleMouseOffset.x) * triangleLerpFactor;
+        triangleMouseOffset.y += (targetTriangleMouseOffset.y - triangleMouseOffset.y) * triangleLerpFactor;
+        
+        updateCameraLookAt();
+        
+        if (particleSystem) {
+            updateParticles();
+        }
+        
+        updateFloatingTriangles();
+        
+        composer.render();
+    }
+    
+    function updateCameraLookAt() {
+        const offsetX = mousePosition.x * maxLookOffset;
+        const offsetY = mousePosition.y * maxLookOffset;
+        
+        cameraTarget.x = 0 + offsetX;
+        cameraTarget.y = 2 + offsetY;
+        cameraTarget.z = 0;
+        
+        camera.lookAt(cameraTarget);
+    }
+    
+    function updateFloatingTriangles() {
+        floatingTriangles.forEach((triangle) => {
+            let floatX = triangle.initialX;
+            let floatY = triangle.initialY;
+            let floatZ = triangle.initialZ;
+            
+            // Diferentes tipos de animación
+            switch(triangle.animationType) {
+                case AnimationType.CIRCULAR:
+                    const circleAngle = time * triangle.circleSpeed + triangle.circleAngleOffset;
+                    floatX = triangle.initialX + Math.cos(circleAngle) * triangle.circleRadius;
+                    floatY = triangle.initialY + Math.sin(circleAngle) * triangle.circleRadius;
+                    floatZ = triangle.initialZ + Math.sin(time * triangle.depthSpeed + triangle.depthOffset) * (triangle.depthAmplitude * 0.3);
+                    break;
+                
+                case AnimationType.VERTICAL_WAVE:
+                    floatY = triangle.initialY + Math.sin(time * triangle.verticalSpeed + triangle.verticalOffset) * triangle.verticalAmplitude;
+                    floatX = triangle.initialX + Math.cos(time * triangle.circleSpeed * 0.5 + triangle.circleAngleOffset) * (triangle.circleRadius * 0.4);
+                    floatZ = triangle.initialZ + Math.sin(time * triangle.depthSpeed + triangle.depthOffset) * (triangle.depthAmplitude * 0.5);
+                    break;
+                
+                case AnimationType.DIAGONAL:
+                    const diagPhase = time * triangle.circleSpeed + triangle.circleAngleOffset;
+                    floatX = triangle.initialX + Math.sin(diagPhase) * triangle.circleRadius;
+                    floatY = triangle.initialY + Math.cos(diagPhase * 0.7) * triangle.verticalAmplitude * 0.6;
+                    floatZ = triangle.initialZ + Math.sin(time * triangle.depthSpeed + triangle.depthOffset) * triangle.depthAmplitude;
+                    break;
+                
+                case AnimationType.SPIRAL:
+                    const spiralAngle = time * triangle.circleSpeed + triangle.circleAngleOffset;
+                    const spiralRadius = triangle.circleRadius * (1 + Math.sin(time * triangle.verticalSpeed * 0.5 + triangle.verticalOffset) * 0.3);
+                    floatX = triangle.initialX + Math.cos(spiralAngle) * spiralRadius;
+                    floatY = triangle.initialY + Math.sin(time * triangle.verticalSpeed + triangle.verticalOffset) * triangle.verticalAmplitude * 0.5;
+                    floatZ = triangle.initialZ + Math.sin(spiralAngle * 0.5) * triangle.depthAmplitude;
+                    break;
+                
+                case AnimationType.DRIFT:
+                    floatX = triangle.initialX + 
+                        Math.sin(time * triangle.circleSpeed * 0.3 + triangle.circleAngleOffset) * triangle.circleRadius * 0.7 +
+                        Math.cos(time * triangle.circleSpeed * 0.5 + triangle.timeOffsetX) * triangle.circleRadius * 0.3;
+                    
+                    floatY = triangle.initialY + 
+                        Math.sin(time * triangle.verticalSpeed * 0.4 + triangle.verticalOffset) * triangle.verticalAmplitude * 0.4 +
+                        Math.cos(time * triangle.verticalSpeed * 0.6 + triangle.timeOffsetY) * triangle.verticalAmplitude * 0.3;
+                    
+                    floatZ = triangle.initialZ + 
+                        Math.sin(time * triangle.depthSpeed + triangle.depthOffset) * triangle.depthAmplitude * 0.6 +
+                        Math.cos(time * triangle.depthSpeed * 1.3 + triangle.timeOffsetZ) * triangle.depthAmplitude * 0.4;
+                    break;
+            }
+            
+            // Aplicar el offset del mouse (invertido) a las posiciones de los triángulos
+            const finalX = floatX + triangleMouseOffset.x;
+            const finalY = floatY + triangleMouseOffset.y;
+            const finalZ = floatZ; // No aplicamos offset en Z para mantener la profundidad
+            
+            triangle.object.position.set(finalX, finalY, finalZ);
+            
+            // Rotaciones más suaves y variadas
+            triangle.object.rotation.x = triangle.initialRotationX + 
+                Math.sin(time * triangle.rotationSpeedX + triangle.timeOffsetX) * triangle.rotationAmplitudeX +
+                Math.cos(time * triangle.rotationSpeedX * 0.5 + triangle.timeOffsetX * 1.5) * triangle.rotationAmplitudeX * 0.3;
+            
+            triangle.object.rotation.y = triangle.initialRotationY + 
+                Math.cos(time * triangle.rotationSpeedY + triangle.timeOffsetY) * triangle.rotationAmplitudeY +
+                Math.sin(time * triangle.rotationSpeedY * 0.7 + triangle.timeOffsetY * 0.8) * triangle.rotationAmplitudeY * 0.4;
+            
+            triangle.object.rotation.z = triangle.initialRotationZ + 
+                Math.sin(time * triangle.rotationSpeedZ + triangle.timeOffsetZ) * triangle.rotationAmplitudeZ +
+                Math.cos(time * triangle.rotationSpeedZ * 1.2 + triangle.timeOffsetZ * 0.6) * triangle.rotationAmplitudeZ * 0.25;
+        });
+    }
+
+    function updateParticles() {
+        particleSystem.rotation.y = rotationByProgress * Math.PI * 2;
+        
+        const positions = particleSystem.geometry.attributes.position;
+        positions.needsUpdate = true;
+    }
+
+    // ============================================
+    // RESPONSIVE
+    // ============================================
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Iniciar animación
+    animate();
+</script>
