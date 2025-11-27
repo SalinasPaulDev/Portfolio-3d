@@ -18,8 +18,7 @@ import ProjectsCarousel from '../components/ProjectsCarousel.astro';
 		</div>
 	</section>
 
-	<section id="about" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32 relative">
-		<div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/30 pointer-events-none"></div>
+	<section id="about" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32" style="background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.15) 20%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0.3) 100%);">
 		<div class="max-w-4xl mx-auto flex flex-col gap-8 text-center justify-center items-center relative z-10">
 			<p class="text-xl md:text-3xl font-semibold text-white/90 leading-relaxed md:leading-loose">
 				I'm Brian, a Frontend Developer who turns technical challenges into business opportunities.
@@ -43,11 +42,146 @@ import ProjectsCarousel from '../components/ProjectsCarousel.astro';
 	</section>
 
 	<ProjectsCarousel />
-
-	<section id="experience" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32 relative">
-		<div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/30 pointer-events-none"></div>
-		<div class="max-w-4xl mx-auto flex flex-col gap-8 text-center justify-center items-center relative z-10">
-
-		</div>
-	</section>
 </Layout>
+
+<script>
+	import { gsap } from 'gsap';
+	import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+	// Register ScrollTrigger plugin
+	gsap.registerPlugin(ScrollTrigger);
+
+	function initScrollAnimations() {
+		// ============================================
+		// Hero Section - Sophisticated entrance with timeline
+		// ============================================
+		const heroTimeline = gsap.timeline({
+			defaults: { ease: 'power3.out' }
+		});
+
+		heroTimeline
+			.from('#main h1', {
+				y: 120,
+				opacity: 0,
+				duration: 1.4,
+				rotationX: -15,
+				transformOrigin: 'top center',
+				delay: 0.2,
+			})
+			.from('#main p', {
+				y: 60,
+				opacity: 0,
+				duration: 1.2,
+			}, '-=0.7')
+			.from('#main button', {
+				y: 40,
+				opacity: 0,
+				scale: 0.9,
+				duration: 1,
+			}, '-=0.5');
+
+		// ============================================
+		// Introduction Section - Timeline with ScrollTrigger
+		// ============================================
+		const introTimeline = gsap.timeline({
+			scrollTrigger: {
+				trigger: '#introduction',
+				start: 'top 70%',
+				toggleActions: 'play none none reverse',
+			},
+			defaults: { ease: 'power3.out' },
+			delay: 0.55
+		});
+
+		introTimeline
+			.from('#introduction h4', {
+				y: 120,
+				opacity: 0,
+				duration: 1.4,
+				rotationX: -15,
+				transformOrigin: 'top center',
+			})
+			.from('#introduction p', {
+				y: 60,
+				opacity: 0,
+				duration: 1.2,
+			}, '-=0.7');
+
+		// ============================================
+		// About Section - Timeline with ScrollTrigger
+		// ============================================
+		const aboutTimeline = gsap.timeline({
+			scrollTrigger: {
+				trigger: '#about',
+				start: 'top 70%',
+				toggleActions: 'play none none reverse',
+			},
+			defaults: { ease: 'power3.out' },
+			delay: 0.55
+		});
+
+		const aboutParagraphs = gsap.utils.toArray('#about p') as HTMLElement[];
+		
+		aboutParagraphs.forEach((paragraph, index) => {
+			aboutTimeline.from(paragraph, {
+				y: 100,
+				opacity: 0,
+				duration: 1.2,
+				rotationX: -12,
+				transformOrigin: 'top center',
+			}, index === 0 ? 0 : '-=0.6');
+		});
+
+		// ============================================
+		// About Detailed Section - Timeline with ScrollTrigger
+		// ============================================
+		const aboutDetailedTimeline = gsap.timeline({
+			scrollTrigger: {
+				trigger: '#about-detailed',
+				start: 'top 70%',
+				toggleActions: 'play none none reverse',
+			},
+			defaults: { ease: 'power3.out' },
+			delay: 0.55
+		});
+
+		aboutDetailedTimeline
+			.from('#about-detailed p', {
+				y: 120,
+				opacity: 0,
+				duration: 1.4,
+				rotationX: -15,
+				transformOrigin: 'top center',
+			})
+			.from('#about-detailed .text-yellow-500', {
+				y: 40,
+				opacity: 0,
+				scale: 0.9,
+				duration: 1,
+			}, '-=0.5');
+
+		// ============================================
+		// Parallax effect on gradient overlays
+		// ============================================
+		gsap.to('#about .absolute', {
+			scrollTrigger: {
+				trigger: '#about',
+				start: 'top bottom',
+				end: 'bottom top',
+				scrub: 1.5,
+			},
+			y: 150,
+			opacity: 0.3,
+		});
+
+		// Refresh ScrollTrigger after all animations are set
+		ScrollTrigger.refresh();
+	}
+
+	// Initialize when DOM is ready
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initScrollAnimations);
+	} else {
+		initScrollAnimations();
+	}
+</script>
