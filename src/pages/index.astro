@@ -1,18 +1,53 @@
 ---
 
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import ProjectsCarousel from '../components/ProjectsCarousel.astro';
 ---
 
 <Layout>
-	<div id="main">
-	<h1>Brian Paul <span class="flex flex-col text-left"> Salinas</span></h1>
-	<p class="text-left text-2xl text-gray-500">Front end developer</p>
+	<div id="main" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32">
+		<h1>Brian Paul <span class="flex flex-col text-left"> Salinas</span></h1>
+		<p class="text-left text-2xl text-yellow-500 ml-2">Front end developer</p>
+		<button class="mt-6 cursor-pointer bg-violet-500 min-w-42 text-white font-light px-2 py-4 rounded-full hover:bg-violet-600 transition-colors">Schedule a call</button>
+	</div>
 
-	<div class="h-[200vh]">
-		Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.
-	 </div>
-</div>
+	<section id="introduction" class="h-dvh flex flex-col  justify-center items-end w-full px-8 md:px-32">
+		<div class="text-left max-w-2xl flex flex-col gap-4">
+		<h4 class="flex flex-col">Transforming ideas <span class="text-yellow-500 flex flex-col">into pixel-perfect reality</span></h4>
+		<p class="prose prose-invert font-light flex flex-col line-clamp-4">Pushing the boundaries of web development with React, Three.js, and cutting-edge technologies. 5 years crafting immersive, performant applications for companies across Argentina and Mexico. <span> When innovation meets execution, exceptional products emerge. </span></p>
+		</div>
+	</section>
+
+	<section id="about" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32 relative">
+		<div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/30 pointer-events-none"></div>
+		<div class="max-w-4xl mx-auto flex flex-col gap-8 text-center justify-center items-center relative z-10">
+			<p class="text-xl md:text-3xl font-semibold text-white/90 leading-relaxed md:leading-loose">
+				I'm Brian, a Frontend Developer who turns technical challenges into business opportunities.
+			</p>
+			<p class="text-xl md:text-3xl font-semibold text-white/90 leading-relaxed md:leading-loose">
+				Over 5 years, I've shipped high-impact products for <span class="inline-block"> Mercado Libre, Globant, and US startups—optimizing performance by 70% </span>building scalable architectures, and leading teams to deliver pixel-perfect experiences.
+			</p>
+			<p class="text-xl md:text-3xl font-semibold text-white/90 leading-relaxed md:leading-loose">
+				I don't just write code; I build systems that scale, refactor legacy chaos into clean solutions, and create component libraries that accelerate entire teams.
+			</p>
+		</div>
+	</section>
+
+	<section id="about-detailed" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32 relative bg-black/30">
+		<div class="max-w-4xl mx-auto flex flex-col gap-8 text-center justify-center items-center relative z-10">
+			<p class="text-xl md:text-3xl font-semibold text-white/90 leading-relaxed md:leading-loose">
+				From complex dashboards managing millions in assets to immersive 3D web experiences, I bring a rare combination: deep technical expertise in React, TypeScript, and modern architecture—plus the strategic thinking to choose the right tools and structure for long-term success.
+				<span class="inline-block text-yellow-500 font-bold"> I help companies ship faster, perform better, and scale smarter. </span>
+			</p>
+		</div>
+	</section>
+
+	<ProjectsCarousel />
+
+	<section id="experience" class="h-dvh flex flex-col justify-center items-start w-full px-8 md:px-32 relative">
+		<div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/30 pointer-events-none"></div>
+		<div class="max-w-4xl mx-auto flex flex-col gap-8 text-center justify-center items-center relative z-10">
+
+		</div>
+	</section>
 </Layout>

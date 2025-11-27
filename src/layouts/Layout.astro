@@ -43,12 +43,23 @@ import Canvas from '../components/Canvas/Canvas.astro';
     box-sizing: border-box;
 	}
 	body {
-		@apply grid place-content-center p-20 relative bg-[#0a0a0a] min-h-dvh md:max-w-screen-lg mx-auto;
+		@apply relative bg-[#0a0a0a] min-h-dvh w-full;
 		background: #0a0a0a;
 		color: white;
 		overflow-x: hidden;
 		position: relative;
 		z-index: 1;
+	}
+	
+	html {
+		overflow-x: hidden;
+		width: 100%;
+		height: 100%;
+	}
+	
+	main {
+		width: 100%;
+		height: 100%;
 	}
 
 	body::before {

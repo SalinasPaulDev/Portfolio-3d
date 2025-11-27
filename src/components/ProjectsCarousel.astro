@@ -1,0 +1,532 @@
+---
+// Componente de carrusel de proyectos
+const projects = [
+	{
+		name: "E-Commerce Platform",
+		category: "FULL STACK • REACT • NODE.JS",
+		image: "/project1.webp",
+		github: "https://github.com/youruser/ecommerce",
+		demo: "https://ecommerce-demo.com"
+	},
+	{
+		name: "AI Dashboard",
+		category: "FRONTEND • REACT • TYPESCRIPT",
+		image: "/project2.webp",
+		github: "https://github.com/youruser/ai-dashboard",
+		demo: "https://ai-dashboard-demo.com"
+	},
+	{
+		name: "Social Media App",
+		category: "MOBILE • REACT NATIVE",
+		image: "/project3.webp",
+		github: "https://github.com/youruser/social-app",
+		demo: "https://social-app-demo.com"
+	},
+	{
+		name: "Portfolio 3D",
+		category: "FRONTEND • THREE.JS • ASTRO",
+		image: "/project1.webp",
+		github: "https://github.com/youruser/portfolio",
+		demo: "https://portfolio-demo.com"
+	},
+	{
+		name: "Task Manager",
+		category: "FULL STACK • NEXT.JS • MONGODB",
+		image: "/project2.webp",
+		github: "https://github.com/youruser/task-manager",
+		demo: "https://task-manager-demo.com"
+	},
+	{
+		name: "Weather App",
+		category: "FRONTEND • VUE.JS • API",
+		image: "/project3.webp",
+		github: "https://github.com/youruser/weather-app",
+		demo: "https://weather-app-demo.com"
+	},
+	{
+		name: "Crypto Tracker",
+		category: "FULL STACK • REACT • GRAPHQL",
+		image: "/project1.webp",
+		github: "https://github.com/youruser/crypto-tracker",
+		demo: "https://crypto-tracker-demo.com"
+	},
+	{
+		name: "Fitness Platform",
+		category: "FULL STACK • ANGULAR • FIREBASE",
+		image: "/project2.webp",
+		github: "https://github.com/youruser/fitness-platform",
+		demo: "https://fitness-platform-demo.com"
+	}
+];
+---
+
+<section id="projects" class="h-dvh flex items-center w-full px-8 md:px-16 lg:px-24 relative overflow-hidden">
+	<!-- Coming Soon Modal -->
+	<div id="coming-soon-modal" class="absolute inset-0 z-50 flex items-center justify-center">
+		<!-- Blur layer: simétrico arriba y abajo -->
+		<div class="absolute inset-0 backdrop-blur-md" style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);"></div>
+		<!-- Gradient overlay: transición suave y simétrica arriba y abajo -->
+		<div class="absolute inset-0" style="background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.5) 30%, rgba(0, 0, 0, 0.85) 50%, rgba(0, 0, 0, 0.5) 70%, transparent 100%);"></div>
+		
+		<div class="relative max-w-lg mx-4 p-8 md:p-10 rounded-3xl bg-gradient-to-br from-violet-950/80 to-black/90 border border-violet-500/30 shadow-2xl shadow-violet-500/20">
+			<!-- Decorative elements -->
+			<div class="absolute -top-1 -left-1 w-20 h-20 bg-violet-500/20 rounded-full blur-2xl"></div>
+			<div class="absolute -bottom-1 -right-1 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl"></div>
+			
+			<div class="relative z-10 text-center space-y-6">
+				<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-500/20 border border-yellow-500/40">
+					<span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+					<span class="text-yellow-400 text-sm font-semibold tracking-wide uppercase">Work in Progress</span>
+				</div>
+				
+				<h3 class="text-3xl md:text-4xl font-bold text-white leading-tight" style="line-height: 0.95;">
+					Coming Soon
+				</h3>
+				
+				<p class="text-white/80 text-base md:text-lg leading-relaxed">
+					This section is currently a <span class="text-violet-400 font-medium">design mockup</span>. I have real projects in my portfolio, but I'm working on creating showcases with the same level of <span class="text-yellow-400 font-medium">quality and professionalism</span> as this website.
+				</p>
+				
+				<p class="text-white/60 text-sm">
+					The images and information shown are placeholders only.
+				</p>
+				
+				<button id="close-modal-btn" class="mt-4 px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-violet-500/40 cursor-pointer">
+					Explore Anyway
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Fade overlay para el background -->
+	<div class="absolute inset-0 pointer-events-none z-0" style="background: linear-gradient(to top, transparent 0%, rgba(0, 0, 0, 0.5) 22%, black 35%, black 70%, rgba(0, 0, 0, 0.3) 85%, rgba(0, 0, 0, 0.3) 100%);"></div>
+	
+	<div class="w-full flex items-center justify-center max-w-[1800px] mx-auto relative z-10">
+		
+		<!-- Columna izquierda - Texto fijo (Absolute) -->
+		<div class="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-[400px] text-left space-y-6 z-10">
+			<h3 class="text-6xl xl:text-7xl font-bold text-white leading-tight">
+				My work
+			</h3>
+			<p class="text-2xl text-white/80 font-light">
+				Featured projects.
+			</p>
+			<div class="space-y-4 text-white/70 font-light text-base">
+				<p>
+					A selection of projects showcasing modern web development, creative problem-solving, and cutting-edge technologies. 
+					Each project demonstrates my commitment to clean code, exceptional UX, and innovative solutions.
+				</p>
+				<p>
+					View all projects on 
+					<a href="https://github.com" target="_blank" rel="noopener noreferrer" class="text-yellow-500 hover:text-yellow-400 transition-colors">GitHub</a>.
+				</p>
+			</div>
+		</div>
+
+		<!-- Columna central y derecha - Swiper -->
+		<div class="flex-1 relative flex flex-col items-center justify-center w-full mx-auto max-w-[900px]">
+			<div class="swiper-container projects-swiper w-full max-w-full overflow-hidden">
+				<div class="swiper-wrapper">
+					{projects.map((project) => (
+						<div class="swiper-slide">
+							<div class="slide-content">
+								<!-- Tarjeta de imagen -->
+								<div class="card-wrapper">
+									<div class="project-card">
+										<img 
+											src={project.image} 
+											alt={project.name}
+											class="w-full h-full object-cover"
+										/>
+									</div>
+								</div>
+
+								<!-- Información del proyecto -->
+								<div class="project-info">
+									<p class="project-category">{project.category}</p>
+									<h3 class="project-name">{project.name}</h3>
+									<div class="project-links">
+										<a href={project.github} target="_blank" rel="noopener noreferrer" class="project-link" title="View Code">
+											<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+												<path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+											</svg>
+										</a>
+										<a href={project.demo} target="_blank" rel="noopener noreferrer" class="project-link" title="Live Demo">
+											<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+												<polyline points="15 3 21 3 21 9"></polyline>
+												<line x1="10" y1="14" x2="21" y2="3"></line>
+											</svg>
+										</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+
+			<!-- Botones de navegación personalizados -->
+			<div class="navigation-buttons">
+				<button class="swiper-button-prev-custom">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="15 18 9 12 15 6"></polyline>
+					</svg>
+				</button>
+				<button class="swiper-button-next-custom">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="9 18 15 12 9 6"></polyline>
+					</svg>
+				</button>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	#coming-soon-modal {
+		transition: opacity 0.3s ease-out;
+	}
+
+	.projects-swiper {
+		width: 100%;
+		height: 650px;
+		padding: 40px 0;
+		overflow: visible;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.swiper-wrapper {
+		align-items: center;
+	}
+
+	.swiper-slide {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0.6;
+		transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+		transform: scale(0.7);
+		height: auto;
+	}
+
+	.swiper-slide-active {
+		opacity: 1;
+		transform: scale(1);
+		z-index: 5;
+	}
+
+	.swiper-slide-prev,
+	.swiper-slide-next {
+		transform: scale(0.75);
+		opacity: 0.8;
+	}
+
+	.slide-content {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		position: relative;
+	}
+
+	.card-wrapper {
+		flex-shrink: 0;
+		transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+		position: relative;
+		display: flex;
+		justify-content: center;
+	}
+
+	.card-wrapper::after {
+		content: '';
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 100%;
+		width: 100%;
+		background: linear-gradient(to top, rgba(0, 0, 0, 0.98) 0%, rgba(0, 0, 0, 0.85) 70%, rgba(0, 0, 0, 0.7) 100%);
+		border-radius: 25px;
+		opacity: 1;
+		transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.swiper-slide-active .card-wrapper::after {
+		opacity:0;
+	}
+
+	.project-card {
+		width: 320px;
+		height: 450px;
+		border-radius: 28px;
+		overflow: hidden;
+		background: #1a1a1a;
+		box-shadow: 0 30px 60px -15px rgba(0, 0, 0);
+		transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.swiper-slide-active .project-card {
+		width: 360px;
+		height: 510px;
+		box-shadow: 0px 6px 17px 5px rgba(139,92,246,0.84);
+		-webkit-box-shadow: 0px 6px 17px 5px rgba(139,92,246,0.84);
+		-moz-box-shadow: 0px 6px 17px 5px rgba(139,92,246,0.84);
+	}
+
+	.project-card img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		filter: grayscale(100%);
+		opacity: 1;
+		transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.swiper-slide-active .project-card img {
+		filter: grayscale(0%);
+		opacity: 1;
+	}
+
+	.project-info {
+		position: absolute;
+		right: -450px;
+		top: 50%;
+		transform: translate(0, -50%) translateX(-30px);
+		opacity: 0;
+		visibility: hidden;
+		transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s;
+		width: 240px;
+		pointer-events: none;
+		text-align: left;
+	}
+
+	.swiper-slide-active .project-info {
+		opacity: 1;
+		visibility: visible;
+		transform: translate(0, -50%) translateX(0);
+		pointer-events: auto;
+	}
+
+	.project-category {
+		font-size: 0.7rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: #8B5CF6;
+		font-weight: 600;
+		margin-bottom: 0.75rem;
+		line-height: 1.4;
+	}
+
+	.project-name {
+		font-size: 2.75rem;
+		font-weight: 700;
+		color: white;
+		line-height: 1.1;
+		margin-bottom: 1.5rem;
+	}
+
+	.project-links {
+		display: flex;
+		gap: 1rem;
+		justify-content: flex-start;
+	}
+
+	.project-link {
+		width: 44px;
+		height: 44px;
+		border-radius: 50%;
+		background: rgba(139, 92, 246, 0.2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: white;
+		transition: all 0.3s ease;
+		backdrop-filter: blur(10px);
+		border: 1px solid rgba(139, 92, 246, 0.3);
+	}
+
+	.project-link:hover {
+		background: rgba(139, 92, 246, 0.4);
+		transform: translateY(-2px);
+		box-shadow: 0 10px 20px -10px rgba(139, 92, 246, 0.5);
+	}
+
+	.navigation-buttons {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
+		margin-top: 3rem;
+		width: 100%;
+	}
+
+	.swiper-button-prev-custom,
+	.swiper-button-next-custom {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: rgba(139, 92, 246, 0.9);
+		border: none;
+		color: white;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.3s ease;
+		backdrop-filter: blur(10px);
+		box-shadow: 0 10px 30px -10px rgba(139, 92, 246, 0.5);
+	}
+
+	.swiper-button-prev-custom:hover,
+	.swiper-button-next-custom:hover {
+		background: rgba(139, 92, 246, 1);
+		transform: scale(1.1);
+		box-shadow: 0 15px 40px -10px rgba(139, 92, 246, 0.7);
+	}
+
+	.swiper-button-prev-custom:active,
+	.swiper-button-next-custom:active {
+		transform: scale(0.95);
+	}
+
+	/* Responsive */
+	@media (max-width: 1280px) {
+		.project-card {
+			width: 280px;
+			height: 400px;
+		}
+
+		.swiper-slide-active .project-card {
+			width: 320px;
+			height: 460px;
+		}
+
+		.project-info {
+			right: -260px;
+			width: 220px;
+		}
+	}
+
+	@media (max-width: 1024px) {
+		.project-info {
+			position: static;
+			transform: none !important;
+			margin-top: 1.5rem;
+			text-align: center;
+			width: auto;
+			max-width: 300px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		.swiper-slide-active .project-info {
+			transform: none !important;
+		}
+
+		.project-links {
+			justify-content: center;
+		}
+
+		.project-card {
+			width: 260px;
+			height: 370px;
+		}
+
+		.swiper-slide-active .project-card {
+			width: 300px;
+			height: 430px;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.projects-swiper {
+			height: 550px;
+		}
+
+		.project-card {
+			width: 240px;
+			height: 340px;
+		}
+
+		.swiper-slide-active .project-card {
+			width: 280px;
+			height: 400px;
+		}
+
+		.project-name {
+			font-size: 2rem;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.project-card {
+			width: 220px;
+			height: 310px;
+		}
+
+		.swiper-slide-active .project-card {
+			width: 260px;
+			height: 370px;
+		}
+
+		.project-name {
+			font-size: 1.75rem;
+		}
+	}
+</style>
+
+<script>
+	import Swiper from 'swiper/bundle';
+	import 'swiper/css/bundle';
+
+	// Close modal functionality
+	const modal = document.getElementById('coming-soon-modal');
+	const closeBtn = document.getElementById('close-modal-btn');
+	
+	closeBtn?.addEventListener('click', () => {
+		modal?.classList.add('opacity-0', 'pointer-events-none');
+		setTimeout(() => {
+			modal?.classList.add('hidden');
+		}, 300);
+	});
+
+	const swiper = new Swiper('.projects-swiper', {
+		effect: 'slide',
+		grabCursor: true,
+		centeredSlides: true,
+		slidesPerView: 3,
+		loop: true,
+		loopAdditionalSlides: 2,
+		speed: 500,
+		spaceBetween: 400,
+		watchSlidesProgress: true,
+		navigation: {
+			nextEl: '.swiper-button-next-custom',
+			prevEl: '.swiper-button-prev-custom',
+		},
+		autoplay: {
+			delay: 8000,
+			disableOnInteraction: false,
+		},
+		breakpoints: {
+			320: {
+				slidesPerView: 1,
+				spaceBetween: 102,
+			},
+			768: {
+				slidesPerView: 1.5,
+				spaceBetween: 102,
+			},
+			1024: {
+				slidesPerView: 3,
+				spaceBetween: 400,
+			},
+		},
+	});
+</script>
+
