@@ -8,7 +8,7 @@ const jobs = [
 ---
 
 <section id="experience" class="h-dvh w-full relative flex flex-col md:flex-row items-center justify-center overflow-hidden px-8 md:px-32">
-    <div class="absolute inset-0 md:relative md:w-3/5 md:h-full md:inset-auto md:shrink-0 pointer-events-none z-0">
+    <div class="absolute inset-0 md:relative md:w-4/6 md:h-full md:inset-auto md:shrink-0 pointer-events-none z-0">
         <canvas id="experience-canvas"></canvas>
     </div>
 
@@ -596,11 +596,17 @@ const jobs = [
                 console.log(`🌍 Globe particle system: ${TARGET_PARTICLE_COUNT} instanced particles (1 draw call)`);
 
                 // Default rotation — first job's country
-                applyCountryRotation(jobs[0].lat, jobs[0].lng, false);
+                if (Array.isArray(listItems) && listItems.length > 0) {
+                    const firstItem = listItems[0];
+                    const lat = parseFloat(firstItem.dataset.lat || '0');
+                    const lng = parseFloat(firstItem.dataset.lng || '0');
+                    applyCountryRotation(lat, lng, false);
+                }
             });
         });
 
         // ============================================
+   
         // COUNTRY HOVER STATE
         // The animate loop uses this to dim non-hovered particles and
         // boost + pulse particles whose countryName matches.
