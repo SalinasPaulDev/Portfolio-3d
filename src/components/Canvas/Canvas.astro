@@ -898,8 +898,25 @@
                 }
             });
         }
+
+        // ============================================
+        // Objeto "dev": salida hacia atrás de la cámara al entrar a #experience
+        // ============================================
+        ScrollTrigger.create({
+            trigger: '#projects',
+            start: 'top top',
+            endTrigger: '#experience',
+            end: 'top top',
+            scrub: true,
+            onUpdate: (self) => {
+                if (particleSystem) {
+                    // Cámara foreground en z=8; empujamos el grupo hasta z=20 para dejarlo detrás
+                    particleSystem.position.z = self.progress * 20;
+                }
+            }
+        });
         };
-        
+
         // Inicializar ScrollTrigger
         initScrollAnimations();
         

@@ -8,7 +8,7 @@ const jobs = [
 ---
 
 <section id="experience" class="h-dvh w-full relative flex flex-col md:flex-row items-center justify-center overflow-hidden px-8 md:px-32">
-    <div class="absolute inset-0 md:relative md:w-1/2 md:h-full md:inset-auto md:shrink-0 pointer-events-none z-0">
+    <div class="absolute inset-0 md:relative md:w-3/5 md:h-full md:inset-auto md:shrink-0 pointer-events-none z-0">
         <canvas id="experience-canvas"></canvas>
     </div>
 
@@ -51,7 +51,7 @@ const jobs = [
     // Fixed target count — particles are distributed uniformly across the earth
     // surface (area-weighted), independent of the model's face count. Tune this
     // to balance density vs perf.
-    const TARGET_PARTICLE_COUNT = 12000;
+    const TARGET_PARTICLE_COUNT = 13000;
 
     const canvas = document.getElementById('experience-canvas') as HTMLCanvasElement | null;
     const section = document.getElementById('experience');
@@ -70,7 +70,7 @@ const jobs = [
 
         const initial = getSize();
         const camera = new THREE.PerspectiveCamera(45, initial.width / initial.height, 0.1, 100);
-        camera.position.set(0, 0, 6);
+        camera.position.set(0, 0, 9);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -86,13 +86,44 @@ const jobs = [
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
         fillLight.position.set(-5, -3, -5);
         scene.add(fillLight);
+        // Golden accent light — toned down for InstancedMesh (per-instance colors wash out under very high intensity)
+        const spotLightFg = new THREE.DirectionalLight(0xffd700, 2.5);
+        spotLightFg.position.set(2, 2, 8);
+        scene.add(spotLightFg);
 
         const globeGroup = new THREE.Group();
         // XYZ: matrix = Rx * Ry, so Ry (longitude) is applied to the point first, then Rx (latitude).
         // This brings (lat, lng) to the front (+Z) correctly. YXZ swaps the order and sends
         // off-equator countries to the wrong spot, causing wild tween arcs between hovers.
         globeGroup.rotation.order = 'XYZ';
+        globeGroup.scale.setScalar(2.5);
+        globeGroup.position.x = -0.8;
         scene.add(globeGroup);
+
+        // Per-instance animation data (populated by buildGlobeInstanced).
+        // Mirrors the dev.glb triangle particles: continuous rotation,
+        // radial float, and a hover scale that lerps currentScale → targetScale.
+        type GlobeInstance = {
+            basePos: THREE.Vector3;
+            baseScale: number;
+            currentScale: number;
+            targetScale: number;
+            rotX: number;
+            rotY: number;
+            rotZ: number;
+            rotSpeedX: number;
+            rotSpeedY: number;
+            rotSpeedZ: number;
+            floatOffset: number;
+            baseColor: THREE.Color;
+            currentBrightness: number;
+            targetBrightness: number;
+            // Country the particle belongs to, or null if water / uncovered land.
+            // Drives the spotlight hover effect.
+            countryName: string | null;
+        };
+        const globeInstances: GlobeInstance[] = [];
+        let globeMesh: THREE.InstancedMesh | null = null;
 
         // ============================================
         // SURFACE SAMPLING (area-weighted, uniform density)
@@ -243,6 +274,77 @@ const jobs = [
             return { lat, lng };
         }
 
+        // Country classifier — same point-in-polygon approach as isLandPoint, but
+        // keyed by country name so each particle can know which country it sits in.
+        type CountryRing = {
+            name: string;
+            ring: number[][];
+            minLng: number;
+            maxLng: number;
+            minLat: number;
+            maxLat: number;
+        };
+        const countryRings: CountryRing[] = [];
+
+        async function loadCountryClassifier(): Promise<void> {
+            try {
+                const resp = await fetch('/data/countries.json');
+                if (!resp.ok) return;
+                const geojson = await resp.json();
+                for (const feature of geojson.features) {
+                    const name: string = feature.properties.name;
+                    const g = feature.geometry;
+                    const polys: number[][][][] =
+                        g.type === 'Polygon'
+                            ? [g.coordinates]
+                            : g.type === 'MultiPolygon'
+                              ? g.coordinates
+                              : [];
+                    for (const polygon of polys) {
+                        const outer = polygon[0];
+                        if (!outer || outer.length === 0) continue;
+                        let minLng = Infinity;
+                        let maxLng = -Infinity;
+                        let minLat = Infinity;
+                        let maxLat = -Infinity;
+                        for (const c of outer) {
+                            if (c[0] < minLng) minLng = c[0];
+                            if (c[0] > maxLng) maxLng = c[0];
+                            if (c[1] < minLat) minLat = c[1];
+                            if (c[1] > maxLat) maxLat = c[1];
+                        }
+                        countryRings.push({ name, ring: outer, minLng, maxLng, minLat, maxLat });
+                    }
+                }
+                console.log(`🏳️  Country classifier ready: ${countryRings.length} rings`);
+            } catch (err) {
+                console.warn('Failed to load country classifier:', err);
+            }
+        }
+        const countryClassifierReady = loadCountryClassifier();
+
+        function pointToCountry(lat: number, lng: number): string | null {
+            for (const r of countryRings) {
+                if (lng < r.minLng || lng > r.maxLng || lat < r.minLat || lat > r.maxLat) continue;
+                const ring = r.ring;
+                let inside = false;
+                for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                    const xi = ring[i][0];
+                    const yi = ring[i][1];
+                    const xj = ring[j][0];
+                    const yj = ring[j][1];
+                    if (
+                        yi > lat !== yj > lat &&
+                        lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+                    ) {
+                        inside = !inside;
+                    }
+                }
+                if (inside) return r.name;
+            }
+            return null;
+        }
+
         function isLandPoint(lat: number, lng: number): boolean {
             for (const r of landRings) {
                 if (lng < r.minLng || lng > r.maxLng || lat < r.minLat || lat > r.maxLat) continue;
@@ -284,7 +386,41 @@ const jobs = [
             const geom: THREE.BufferGeometry =
                 sourceGeom ?? new THREE.TetrahedronGeometry(1);
 
-            const points = sampleSurfaceUniform(earth, count);
+            // Deterministic Fibonacci sphere distribution: guarantees uniform per-area
+            // density with no Monte Carlo variance, so small countries like Argentina
+            // get their fair share of particles. We oversample heavily, keep every
+            // land point, and thin the water.
+            //
+            // The earth mesh (`earth`) is unused for sampling now — it was only here to
+            // provide the sphere radius, which the wrapper normalization already made 1.
+            const OVER_SAMPLE = 4;
+            const WATER_KEEP_PROB = 0.15;
+            const totalSamples = Math.floor(count * OVER_SAMPLE);
+            const goldenRatio = (1 + Math.sqrt(5)) / 2;
+            const points: THREE.Vector3[] = [];
+            const pointIsLand: boolean[] = [];
+            const pointCountry: (string | null)[] = [];
+            for (let k = 0; k < totalSamples; k++) {
+                // Golden-ratio spiral on unit sphere — uniform density, no clumping.
+                const y = 1 - (2 * (k + 0.5)) / totalSamples; // [-1, 1]
+                const r = Math.sqrt(1 - y * y);
+                const theta = (2 * Math.PI * k) / goldenRatio;
+                const x = Math.cos(theta) * r;
+                const z = Math.sin(theta) * r;
+                const p = new THREE.Vector3(x, y, z);
+
+                const { lat, lng } = pointToLatLng(x, y, z);
+                const isLand = isLandPoint(lat, lng);
+                if (isLand) {
+                    points.push(p);
+                    pointIsLand.push(true);
+                    pointCountry.push(pointToCountry(lat, lng));
+                } else if (Math.random() < WATER_KEEP_PROB) {
+                    points.push(p);
+                    pointIsLand.push(false);
+                    pointCountry.push(null);
+                }
+            }
 
             let minX = Infinity;
             let maxX = -Infinity;
@@ -296,10 +432,10 @@ const jobs = [
 
             const material = new THREE.MeshStandardMaterial({
                 color: 0xffffff, // white so per-instance color shows directly
-                metalness: 0.7,
-                roughness: 0.3,
-                emissive: 0x222222,
-                emissiveIntensity: 0.9,
+                metalness: 0.3,
+                roughness: 0.4,
+                emissive: 0x444444,
+                emissiveIntensity: 0.5,
                 transparent: true,
                 opacity: 0.95,
             });
@@ -325,30 +461,61 @@ const jobs = [
             let landCount = 0;
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
-
-                const { lat, lng } = pointToLatLng(p.x, p.y, p.z);
-                const isLand = isLandPoint(lat, lng);
+                const isLand = pointIsLand[i];
                 if (isLand) landCount++;
 
-                // Land: bigger + bright gradient. Water: smaller + muted cool tone.
-                const scale = isLand
-                    ? 0.024 + Math.random() * 0.010 // land: 0.024–0.034
-                    : 0.008 + Math.random() * 0.004; // water: 0.008–0.012
+                // Small triangles so dense land sampling fills continents without
+                // visible overlap/clumping. Mix of two ranges for subtle texture variation.
+                let scale: number;
+                if (isLand) {
+                    const r = Math.random();
+                    if (r < 0.6) scale = 0.007 + Math.random() * 0.005; // fine fillers: 0.007–0.012
+                    else scale = 0.012 + Math.random() * 0.006;        // slightly larger: 0.012–0.018
+                } else {
+                    scale = 0.005 + Math.random() * 0.003;             // water: 0.005–0.008
+                }
 
-                dummy.position.set(p.x, p.y, p.z);
-                dummy.rotation.set(
-                    Math.random() * Math.PI * 2,
-                    Math.random() * Math.PI * 2,
-                    Math.random() * Math.PI * 2
-                );
+                const initRotX = Math.random() * Math.PI * 2;
+                const initRotY = Math.random() * Math.PI * 2;
+                const initRotZ = Math.random() * Math.PI * 2;
+
+                // Push each particle outward along its normal by ~its own extent so
+                // the triangle's rotation never dips vertices below the sphere surface.
+                const radius = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z) || 1;
+                const outwardFactor = 1 + scale * 1.2 / radius;
+                const px = p.x * outwardFactor;
+                const py = p.y * outwardFactor;
+                const pz = p.z * outwardFactor;
+
+                dummy.position.set(px, py, pz);
+                dummy.rotation.set(initRotX, initRotY, initRotZ);
                 dummy.scale.setScalar(scale);
                 dummy.updateMatrix();
                 mesh.setMatrixAt(i, dummy.matrix);
 
+                globeInstances.push({
+                    basePos: new THREE.Vector3(px, py, pz),
+                    baseScale: scale,
+                    currentScale: scale,
+                    targetScale: scale,
+                    rotX: initRotX,
+                    rotY: initRotY,
+                    rotZ: initRotZ,
+                    rotSpeedX: 0.005 + Math.random() * 0.008,
+                    rotSpeedY: 0.005 + Math.random() * 0.008,
+                    rotSpeedZ: 0.005 + Math.random() * 0.008,
+                    floatOffset: Math.random() * Math.PI * 2,
+                    baseColor: new THREE.Color(1, 1, 1), // filled after color block below
+                    currentBrightness: 1.0,
+                    targetBrightness: 1.0,
+                    countryName: pointCountry[i],
+                });
+
                 let c: THREE.Color;
                 if (isLand) {
-                    // Bright rainbow gradient for continents
-                    const nx = (p.x - minX) / rangeX;
+                    // Flipped gradient: Americas (low X) get warm/bright colors,
+                    // Europe/Africa/Asia (high X) get cool purples.
+                    const nx = 1 - (p.x - minX) / rangeX;
                     if (nx < 0.14) c = colorStops[0].clone().lerp(colorStops[1], nx / 0.14);
                     else if (nx < 0.28) c = colorStops[1].clone().lerp(colorStops[2], (nx - 0.14) / 0.14);
                     else if (nx < 0.42) c = colorStops[2].clone().lerp(colorStops[3], (nx - 0.28) / 0.14);
@@ -359,8 +526,8 @@ const jobs = [
 
                     const variation = (Math.random() - 0.5) * 0.08;
                     c.offsetHSL(0, 0, variation);
-                    // Brighter floor so continents pop
-                    const brightness = 0.95 + Math.random() * 0.25;
+                    // Same brightness curve as dev.glb particles in Canvas.astro
+                    const brightness = 0.6 + nx * 0.35;
                     c.multiplyScalar(brightness);
                 } else {
                     // Muted, desaturated, dark — "sad" water
@@ -372,6 +539,7 @@ const jobs = [
                 }
 
                 mesh.setColorAt(i, c);
+                globeInstances[i].baseColor.copy(c);
             }
 
             mesh.instanceMatrix.needsUpdate = true;
@@ -393,8 +561,9 @@ const jobs = [
             const triangleTemplate = triTpl.scene;
 
             loader.load('/earth-globe.glb', async (earthGltf) => {
-                // Make sure the land classifier is ready before we build (so scales classify correctly)
+                // Make sure the land + country classifiers are ready before we build
                 await landReady;
+                await countryClassifierReady;
 
                 const earth = earthGltf.scene;
 
@@ -417,7 +586,7 @@ const jobs = [
                 wrapper.scale.setScalar(2 / maxDim);
                 wrapper.updateMatrixWorld(true);
 
-                const globeMesh = buildGlobeInstanced(
+                globeMesh = buildGlobeInstanced(
                     wrapper,
                     triangleTemplate,
                     TARGET_PARTICLE_COUNT
@@ -432,114 +601,11 @@ const jobs = [
         });
 
         // ============================================
-        // COUNTRY OUTLINES (GeoJSON → sphere → LineLoop per ring)
+        // COUNTRY HOVER STATE
+        // The animate loop uses this to dim non-hovered particles and
+        // boost + pulse particles whose countryName matches.
         // ============================================
-        type CountryEntry = {
-            group: THREE.Group;
-            material: THREE.LineBasicMaterial;
-        };
-        const countryEntries = new Map<string, CountryEntry>();
-        // Slightly above the particle surface (globe is normalized to ~1 unit radius)
-        const OUTLINE_RADIUS = 1.02;
-
-        function latLngToSphere(lat: number, lng: number, radius: number): THREE.Vector3 {
-            const latRad = (lat * Math.PI) / 180;
-            const lngRad = (lng * Math.PI) / 180;
-            return new THREE.Vector3(
-                radius * Math.cos(latRad) * Math.sin(lngRad),
-                radius * Math.sin(latRad),
-                radius * Math.cos(latRad) * Math.cos(lngRad)
-            );
-        }
-
-        async function loadCountryOutlines() {
-            try {
-                const resp = await fetch('/data/countries.json');
-                if (!resp.ok) return;
-                const geojson = await resp.json();
-
-                for (const feature of geojson.features) {
-                    const name: string = feature.properties.name;
-                    const material = new THREE.LineBasicMaterial({
-                        color: 0xeab308, // tailwind yellow-500
-                        transparent: true,
-                        opacity: 0,
-                    });
-                    const group = new THREE.Group();
-
-                    const geometry = feature.geometry;
-                    const polygons: number[][][][] =
-                        geometry.type === 'Polygon'
-                            ? [geometry.coordinates]
-                            : geometry.type === 'MultiPolygon'
-                              ? geometry.coordinates
-                              : [];
-
-                    for (const polygon of polygons) {
-                        for (const ring of polygon) {
-                            const positions: number[] = [];
-                            for (const coord of ring) {
-                                const lng = coord[0];
-                                const lat = coord[1];
-                                const p = latLngToSphere(lat, lng, OUTLINE_RADIUS);
-                                positions.push(p.x, p.y, p.z);
-                            }
-                            const geom = new THREE.BufferGeometry();
-                            geom.setAttribute(
-                                'position',
-                                new THREE.Float32BufferAttribute(positions, 3)
-                            );
-                            const line = new THREE.LineLoop(geom, material);
-                            group.add(line);
-                        }
-                    }
-
-                    group.visible = false;
-                    globeGroup.add(group);
-                    countryEntries.set(name, { group, material });
-                }
-                console.log(`🗺️  Country outlines loaded: ${countryEntries.size}`);
-            } catch (err) {
-                console.warn('Failed to load country outlines:', err);
-            }
-        }
-        loadCountryOutlines();
-
-        function showCountryOutline(name: string) {
-            for (const [n, entry] of countryEntries) {
-                if (n === name) {
-                    entry.group.visible = true;
-                    gsap.to(entry.material, {
-                        opacity: 0.95,
-                        duration: 0.4,
-                        ease: 'power2.out',
-                        overwrite: true,
-                    });
-                } else {
-                    gsap.to(entry.material, {
-                        opacity: 0,
-                        duration: 0.25,
-                        overwrite: true,
-                        onComplete: () => {
-                            entry.group.visible = false;
-                        },
-                    });
-                }
-            }
-        }
-
-        function hideAllCountryOutlines() {
-            for (const entry of countryEntries.values()) {
-                gsap.to(entry.material, {
-                    opacity: 0,
-                    duration: 0.3,
-                    overwrite: true,
-                    onComplete: () => {
-                        entry.group.visible = false;
-                    },
-                });
-            }
-        }
+        let hoveredCountry: string | null = null;
 
         // ============================================
         // ROTATION TO COUNTRY
@@ -568,15 +634,15 @@ const jobs = [
             const countryName = item.dataset.country || '';
             item.addEventListener('mouseenter', () => {
                 applyCountryRotation(lat, lng, true);
-                showCountryOutline(countryName);
+                hoveredCountry = countryName;
             });
         });
 
-        // Hide highlights when the cursor leaves the list entirely.
+        // Clear highlight when the cursor leaves the list entirely.
         // Moving between items just swaps highlights (mouseenter fires on the next item).
         const listEl = document.getElementById('experience-list');
         listEl?.addEventListener('mouseleave', () => {
-            hideAllCountryOutlines();
+            hoveredCountry = null;
         });
 
         // ============================================
@@ -591,11 +657,140 @@ const jobs = [
         );
         observer.observe(section);
 
+        // ============================================
+        // MOUSE HOVER (raycaster against the InstancedMesh → scale nearby instances)
+        // ============================================
+        const raycaster = new THREE.Raycaster();
+        const mouseNDC = new THREE.Vector2();
+        let mouseOverCanvas = false;
+
+        window.addEventListener('pointermove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            if (
+                e.clientX < rect.left ||
+                e.clientX > rect.right ||
+                e.clientY < rect.top ||
+                e.clientY > rect.bottom
+            ) {
+                mouseOverCanvas = false;
+                return;
+            }
+            mouseOverCanvas = true;
+            mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        const animDummy = new THREE.Object3D();
+        const HOVER_RADIUS_3D = 0.12;
+        const HOVER_SCALE_MULT = 2.6;
+
+        const _brightColor = new THREE.Color();
+
         function animate() {
             requestAnimationFrame(animate);
-            if (isVisible) {
-                renderer.render(scene, camera);
+            if (!isVisible) return;
+
+            const t = performance.now() * 0.001;
+
+            // Animate the strong golden light — mirrors updateDynamicLights() in Canvas.astro
+            const lightSpeed = 0.1;
+            const lightRadius = 1.5;
+            spotLightFg.position.x = 2 + Math.cos(t * lightSpeed) * lightRadius;
+            spotLightFg.position.y = 2 + Math.sin(t * lightSpeed * 0.7) * 0.8;
+            spotLightFg.position.z = 8 + Math.sin(t * lightSpeed) * lightRadius;
+            spotLightFg.intensity = 2.5 + Math.sin(t * 0.15) * 0.3;
+
+            // Raycast hover: bump targetScale AND targetBrightness of nearby instances.
+            if (globeMesh && mouseOverCanvas) {
+                raycaster.setFromCamera(mouseNDC, camera);
+                const hits = raycaster.intersectObject(globeMesh, false);
+                if (hits.length > 0 && hits[0].instanceId !== undefined) {
+                    const hitId = hits[0].instanceId;
+                    const hitPos = globeInstances[hitId].basePos;
+                    const r2 = HOVER_RADIUS_3D * HOVER_RADIUS_3D;
+                    for (let i = 0; i < globeInstances.length; i++) {
+                        const d = globeInstances[i];
+                        const dx = d.basePos.x - hitPos.x;
+                        const dy = d.basePos.y - hitPos.y;
+                        const dz = d.basePos.z - hitPos.z;
+                        const distSq = dx * dx + dy * dy + dz * dz;
+                        if (distSq < r2) {
+                            const falloff = 1 - distSq / r2;
+                            const boosted = d.baseScale * (1 + (HOVER_SCALE_MULT - 1) * falloff);
+                            if (boosted > d.targetScale) d.targetScale = boosted;
+                            // Brightness boost matching Canvas.astro hover effect
+                            const brightBoost = 1 + falloff * falloff * 0.8;
+                            if (brightBoost > d.targetBrightness) d.targetBrightness = brightBoost;
+                        }
+                    }
+                }
             }
+
+            // Country hover pass (spotlight dim + country pulse).
+            // Runs before the per-instance lerp so fresh targets are set each frame
+            // while the highlight is active.
+            const countryBreath = 1 + Math.sin(t * 4.5) * 0.12; // cinematic pulse
+            const COUNTRY_SCALE_MULT = 1.5;
+            const COUNTRY_BRIGHT_MULT = 1.6;
+            const COUNTRY_DIM = 0.2;
+            if (hoveredCountry && globeMesh) {
+                for (let i = 0; i < globeInstances.length; i++) {
+                    const d = globeInstances[i];
+                    if (d.countryName === hoveredCountry) {
+                        const tgtScale = d.baseScale * COUNTRY_SCALE_MULT * countryBreath;
+                        if (tgtScale > d.targetScale) d.targetScale = tgtScale;
+                        if (COUNTRY_BRIGHT_MULT > d.targetBrightness) d.targetBrightness = COUNTRY_BRIGHT_MULT;
+                    } else {
+                        if (COUNTRY_DIM < d.targetBrightness) d.targetBrightness = COUNTRY_DIM;
+                    }
+                }
+            }
+
+            // Per-instance update: rotation, radial float, scale lerp, brightness lerp.
+            let colorNeedsUpdate = false;
+            if (globeMesh) {
+                for (let i = 0; i < globeInstances.length; i++) {
+                    const d = globeInstances[i];
+                    d.rotX += d.rotSpeedX;
+                    d.rotY += d.rotSpeedY;
+                    d.rotZ += d.rotSpeedZ;
+                    d.currentScale += (d.targetScale - d.currentScale) * 0.15;
+                    d.targetScale += (d.baseScale - d.targetScale) * 0.06;
+
+                    // Lerp brightness back to 1.0 when not hovered
+                    const prevBrightness = d.currentBrightness;
+                    d.currentBrightness += (d.targetBrightness - d.currentBrightness) * 0.2;
+                    d.targetBrightness += (1.0 - d.targetBrightness) * 0.1;
+
+                    if (Math.abs(d.currentBrightness - prevBrightness) > 0.001) {
+                        _brightColor.copy(d.baseColor).multiplyScalar(d.currentBrightness);
+                        globeMesh.setColorAt(i, _brightColor);
+                        colorNeedsUpdate = true;
+                    }
+
+                    // Strictly outward pulse (never < 1) so the float never pushes particles inside the sphere.
+                    let radial = 1 + (Math.sin(t * 0.6 + d.floatOffset) * 0.5 + 0.5) * 0.006;
+                    if (hoveredCountry && d.countryName === hoveredCountry) {
+                        // Extra outward breathing on highlighted country — strictly positive.
+                        radial += (Math.sin(t * 4 + d.floatOffset) * 0.5 + 0.5) * 0.025;
+                    }
+                    animDummy.position.set(
+                        d.basePos.x * radial,
+                        d.basePos.y * radial,
+                        d.basePos.z * radial
+                    );
+                    animDummy.rotation.set(d.rotX, d.rotY, d.rotZ);
+                    animDummy.scale.setScalar(d.currentScale);
+                    animDummy.updateMatrix();
+                    globeMesh.setMatrixAt(i, animDummy.matrix);
+                }
+                globeMesh.instanceMatrix.needsUpdate = true;
+                if (colorNeedsUpdate && globeMesh.instanceColor) {
+                    globeMesh.instanceColor.needsUpdate = true;
+                }
+            }
+
+            renderer.render(scene, camera);
         }
         animate();
 
