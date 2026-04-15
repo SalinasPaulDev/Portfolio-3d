@@ -118,9 +118,12 @@ const jobs = [
         // ============================================
         const canvasWrap = document.getElementById('experience-canvas-wrap');
         const textCard = document.getElementById('experience-text-card');
-        if (canvasWrap) gsap.set(canvasWrap, { autoAlpha: 0, y: 40 });
+        if (canvasWrap) gsap.set(canvasWrap, { autoAlpha: 0 });
         if (textCard) gsap.set(textCard, { autoAlpha: 0, y: 20 });
         gsap.set('.experience-item', { autoAlpha: 0, y: 15 });
+        // Globe 3D object starts below camera view + smaller for the fade-up entrance
+        globeGroup.position.y = -4;
+        globeGroup.scale.setScalar(1.0);
 
         let globeLoaded = false;
         let scrollEntered = false;
@@ -146,9 +149,8 @@ const jobs = [
         const computeRestingWorldX = () =>
             worldXForScreenFraction(isDesktop() ? 0.33 : 0.5);
 
-        // Apply resting position immediately so the idle frame (before the
-        // intro plays or if the section is off-screen) is visually correct.
-        globeGroup.position.x = computeRestingWorldX();
+        // Start the globe centered — the intro timeline will slide it left.
+        globeGroup.position.x = computeIntroStartWorldX();
 
         const tryStartIntro = () => {
             if (!globeLoaded || !scrollEntered || introStarted) return;
@@ -161,49 +163,54 @@ const jobs = [
             const finalRotY = -(lng * Math.PI) / 180;
             const finalRotX = (lat * Math.PI) / 180;
 
-            // Start rotated one full turn short of the final — the tween
-            // spins +2π and lands exactly on the resting orientation.
-            globeGroup.rotation.x = finalRotX;
-            globeGroup.rotation.y = finalRotY - Math.PI * 2;
-            globeGroup.position.x = computeIntroStartWorldX();
-
             const tl = gsap.timeline();
+
+            // 1. Quick canvas reveal
             if (canvasWrap) {
-                tl.to(canvasWrap, {
-                    autoAlpha: 1,
-                    y: 0,
-                    duration: 0.9,
-                    ease: 'power2.out',
-                });
+                tl.to(canvasWrap, { autoAlpha: 1, duration: 0.3, ease: 'power2.out' });
             }
+
+            // 2. Fade-up: the 3D globe rises from below + scales up
+            tl.to(globeGroup.position, { y: 0, duration: 1.0, ease: 'power3.out' }, '-=0.1');
+            tl.to(globeGroup.scale, { x: 2.5, y: 2.5, z: 2.5, duration: 1.0, ease: 'power3.out' }, '<');
+
+            // 3. Spin: full 360° + tilt to first country (starts before rise finishes)
             tl.to(
                 globeGroup.rotation,
                 {
-                    y: finalRotY,
-                    duration: 2.2,
+                    x: finalRotX,
+                    y: finalRotY + Math.PI * 2,
+                    duration: 1.5,
                     ease: 'power3.inOut',
+                    onComplete: () => {
+                        globeGroup.rotation.y = finalRotY;
+                    },
                 },
-                '-=0.4'
+                '-=0.3'
             );
+
+            // 4. Slide from center to left
             tl.to(
                 globeGroup.position,
                 {
                     x: computeRestingWorldX(),
-                    duration: 1.4,
+                    duration: 1.0,
                     ease: 'power3.inOut',
                 },
-                '-=1.4'
+                '-=0.3'
             );
+
+            // 5. Text card + list items
             if (textCard) {
                 tl.to(
                     textCard,
                     {
                         autoAlpha: 1,
                         y: 0,
-                        duration: 0.7,
+                        duration: 0.6,
                         ease: 'power2.out',
                     },
-                    '-=0.8'
+                    '-=0.6'
                 );
             }
             tl.to(
@@ -211,11 +218,11 @@ const jobs = [
                 {
                     autoAlpha: 1,
                     y: 0,
-                    duration: 0.5,
+                    duration: 0.4,
                     stagger: 0.1,
                     ease: 'power2.out',
                 },
-                '-=0.5'
+                '-=0.3'
             );
         };
 
@@ -810,10 +817,7 @@ const jobs = [
             (entries) => {
                 isVisible = entries[0].isIntersecting;
             },
-            // Slightly higher than before so the globe doesn't start rendering
-            // on the very first peek, but still fires before the intro
-            // ScrollTrigger so the reveal is visible.
-            { threshold: 0.15 }
+            { threshold: 0.01 }
         );
         observer.observe(section);
 
@@ -849,7 +853,7 @@ const jobs = [
         function animate() {
             requestAnimationFrame(animate);
             if (!isVisible) return;
-            if (isScrolling && !gsap.isTweening(globeGroup.rotation) && !gsap.isTweening(globeGroup.position)) return;
+            if (isScrolling && !gsap.isTweening(globeGroup.rotation) && !gsap.isTweening(globeGroup.position) && !gsap.isTweening(globeGroup.scale)) return;
 
             const t = performance.now() * 0.001;
 
