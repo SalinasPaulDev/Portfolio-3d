@@ -499,11 +499,11 @@ const jobs = [
         // ============================================
         // BUILD GLOBE AS A SINGLE INSTANCED MESH
         // ============================================
-        function buildGlobeInstanced(
+        async function buildGlobeInstanced(
             earth: THREE.Object3D,
             template: THREE.Group,
             count: number
-        ): THREE.InstancedMesh {
+        ): Promise<THREE.InstancedMesh> {
             // Extract the first mesh geometry from py-lod7.glb
             let sourceGeom: THREE.BufferGeometry | null = null;
             template.traverse((child) => {
@@ -530,7 +530,9 @@ const jobs = [
             const pointIsLand: boolean[] = [];
             const pointCountry: (string | null)[] = [];
             for (let k = 0; k < totalSamples; k++) {
-                // Golden-ratio spiral on unit sphere — uniform density, no clumping.
+                if (k > 0 && k % 5000 === 0) {
+                    await new Promise<void>(r => setTimeout(r, 0));
+                }
                 const y = 1 - (2 * (k + 0.5)) / totalSamples; // [-1, 1]
                 const r = Math.sqrt(1 - y * y);
                 const theta = (2 * Math.PI * k) / goldenRatio;
@@ -589,6 +591,9 @@ const jobs = [
 
             let landCount = 0;
             for (let i = 0; i < points.length; i++) {
+                if (i > 0 && i % 5000 === 0) {
+                    await new Promise<void>(r => setTimeout(r, 0));
+                }
                 const p = points[i];
                 const isLand = pointIsLand[i];
                 if (isLand) landCount++;
@@ -715,7 +720,7 @@ const jobs = [
                 wrapper.scale.setScalar(2 / maxDim);
                 wrapper.updateMatrixWorld(true);
 
-                globeMesh = buildGlobeInstanced(
+                globeMesh = await buildGlobeInstanced(
                     wrapper,
                     triangleTemplate,
                     TARGET_PARTICLE_COUNT
@@ -843,7 +848,8 @@ const jobs = [
 
         function animate() {
             requestAnimationFrame(animate);
-            if (!isVisible || isScrolling) return;
+            if (!isVisible) return;
+            if (isScrolling && !gsap.isTweening(globeGroup.rotation) && !gsap.isTweening(globeGroup.position)) return;
 
             const t = performance.now() * 0.001;
 
