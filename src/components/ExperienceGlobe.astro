@@ -8,11 +8,11 @@ const jobs = [
 ---
 
 <section id="experience" class="h-dvh w-full relative flex flex-col md:flex-row items-center justify-center overflow-hidden px-8 md:px-32">
-    <div class="absolute inset-0 md:relative md:w-4/6 md:h-full md:inset-auto md:shrink-0 pointer-events-none z-0">
+    <div id="experience-canvas-wrap" class="absolute inset-0 pointer-events-none z-0">
         <canvas id="experience-canvas"></canvas>
     </div>
 
-    <div class="relative z-10 md:w-1/2 flex flex-col gap-8 w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-md">
+    <div id="experience-text-card" class="relative z-10 md:w-1/2 md:ml-auto flex flex-col gap-8 w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-md">
         <h4 class="flex flex-col">Where <span class="text-yellow-500">I've worked</span></h4>
         <ul id="experience-list" class="flex flex-col gap-4">
             {jobs.map((job) => (
@@ -47,6 +47,9 @@ const jobs = [
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
     import { gsap } from 'gsap';
+    import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+    gsap.registerPlugin(ScrollTrigger);
 
     // Fixed target count — particles are distributed uniformly across the earth
     // surface (area-weighted), independent of the model's face count. Tune this
@@ -73,8 +76,15 @@ const jobs = [
         camera.position.set(0, 0, 9);
         camera.lookAt(0, 0, 0);
 
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const renderer = new THREE.WebGLRenderer({
+            canvas,
+            antialias: true,
+            alpha: true,
+            powerPreference: 'high-performance',
+        });
+        // DPR capped at 1.5 — full-bleed canvas makes DPR 2 very expensive,
+        // and the background Canvas.astro is sharing the GPU/main-thread budget.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(initial.width, initial.height, false);
         renderer.setClearColor(0x000000, 0);
 
@@ -97,8 +107,127 @@ const jobs = [
         // off-equator countries to the wrong spot, causing wild tween arcs between hovers.
         globeGroup.rotation.order = 'XYZ';
         globeGroup.scale.setScalar(2.5);
-        globeGroup.position.x = -0.8;
         scene.add(globeGroup);
+
+        // ============================================
+        // INTRO ANIMATION STATE
+        // Pre-hides the canvas + text card so the scroll-triggered
+        // timeline can fade the section in with a spin + slide.
+        // Final state after the intro matches the original working
+        // resting state (position.x = -0.8, first-job rotation).
+        // ============================================
+        const canvasWrap = document.getElementById('experience-canvas-wrap');
+        const textCard = document.getElementById('experience-text-card');
+        if (canvasWrap) gsap.set(canvasWrap, { autoAlpha: 0, y: 40 });
+        if (textCard) gsap.set(textCard, { autoAlpha: 0, y: 20 });
+        gsap.set('.experience-item', { autoAlpha: 0, y: 15 });
+
+        let globeLoaded = false;
+        let scrollEntered = false;
+        let introStarted = false;
+
+        // Project a viewport x (as fraction of window width) onto a world-X
+        // on the globe plane (z=0). Used for both the intro start (center)
+        // and the resting position (left quarter on desktop, center on mobile).
+        const worldXForScreenFraction = (frac: number) => {
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0) return 0;
+            const screenPx = window.innerWidth * frac;
+            const pxFromCanvasCenter = screenPx - (rect.left + rect.width / 2);
+            const ndcX = pxFromCanvasCenter / (rect.width / 2);
+            const vFov = (camera.fov * Math.PI) / 180;
+            const halfH = Math.tan(vFov / 2) * camera.position.z;
+            const halfW = halfH * camera.aspect;
+            return ndcX * halfW;
+        };
+
+        const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
+        const computeIntroStartWorldX = () => worldXForScreenFraction(0.5);
+        const computeRestingWorldX = () =>
+            worldXForScreenFraction(isDesktop() ? 0.33 : 0.5);
+
+        // Apply resting position immediately so the idle frame (before the
+        // intro plays or if the section is off-screen) is visually correct.
+        globeGroup.position.x = computeRestingWorldX();
+
+        const tryStartIntro = () => {
+            if (!globeLoaded || !scrollEntered || introStarted) return;
+            introStarted = true;
+
+            const firstItem = listItems[0];
+            if (!firstItem) return;
+            const lat = parseFloat(firstItem.dataset.lat || '0');
+            const lng = parseFloat(firstItem.dataset.lng || '0');
+            const finalRotY = -(lng * Math.PI) / 180;
+            const finalRotX = (lat * Math.PI) / 180;
+
+            // Start rotated one full turn short of the final — the tween
+            // spins +2π and lands exactly on the resting orientation.
+            globeGroup.rotation.x = finalRotX;
+            globeGroup.rotation.y = finalRotY - Math.PI * 2;
+            globeGroup.position.x = computeIntroStartWorldX();
+
+            const tl = gsap.timeline();
+            if (canvasWrap) {
+                tl.to(canvasWrap, {
+                    autoAlpha: 1,
+                    y: 0,
+                    duration: 0.9,
+                    ease: 'power2.out',
+                });
+            }
+            tl.to(
+                globeGroup.rotation,
+                {
+                    y: finalRotY,
+                    duration: 2.2,
+                    ease: 'power3.inOut',
+                },
+                '-=0.4'
+            );
+            tl.to(
+                globeGroup.position,
+                {
+                    x: computeRestingWorldX(),
+                    duration: 1.4,
+                    ease: 'power3.inOut',
+                },
+                '-=1.4'
+            );
+            if (textCard) {
+                tl.to(
+                    textCard,
+                    {
+                        autoAlpha: 1,
+                        y: 0,
+                        duration: 0.7,
+                        ease: 'power2.out',
+                    },
+                    '-=0.8'
+                );
+            }
+            tl.to(
+                '.experience-item',
+                {
+                    autoAlpha: 1,
+                    y: 0,
+                    duration: 0.5,
+                    stagger: 0.1,
+                    ease: 'power2.out',
+                },
+                '-=0.5'
+            );
+        };
+
+        ScrollTrigger.create({
+            trigger: section,
+            start: 'top 70%',
+            once: true,
+            onEnter: () => {
+                scrollEntered = true;
+                tryStartIntro();
+            },
+        });
 
         // Per-instance animation data (populated by buildGlobeInstanced).
         // Mirrors the dev.glb triangle particles: continuous rotation,
@@ -595,13 +724,11 @@ const jobs = [
 
                 console.log(`🌍 Globe particle system: ${TARGET_PARTICLE_COUNT} instanced particles (1 draw call)`);
 
-                // Default rotation — first job's country
-                if (Array.isArray(listItems) && listItems.length > 0) {
-                    const firstItem = listItems[0];
-                    const lat = parseFloat(firstItem.dataset.lat || '0');
-                    const lng = parseFloat(firstItem.dataset.lng || '0');
-                    applyCountryRotation(lat, lng, false);
-                }
+                // Default rotation — first job's country.
+                // Deferred into the intro timeline (see tryStartIntro) so the
+                // reveal spin lands exactly on the first-job orientation.
+                globeLoaded = true;
+                tryStartIntro();
             });
         });
 
@@ -652,14 +779,36 @@ const jobs = [
         });
 
         // ============================================
-        // RENDER LOOP (gated by IntersectionObserver for perf)
+        // RENDER LOOP (gated by IntersectionObserver + active-scroll pause for perf)
         // ============================================
         let isVisible = false;
+        // Pauses the globe's render work while the user is actively scrolling.
+        // The background Canvas.astro scene is frame-rate-locked (fixed `time +=`
+        // increment per frame) and its scroll-triggered scrub callbacks fight for
+        // main-thread budget. Skipping this loop during scroll hands those frames
+        // back so the dev-object animation stays smooth. Resumes ~120ms after the
+        // last scroll event.
+        let isScrolling = false;
+        let scrollIdleTimer: number | null = null;
+        window.addEventListener(
+            'scroll',
+            () => {
+                isScrolling = true;
+                if (scrollIdleTimer !== null) window.clearTimeout(scrollIdleTimer);
+                scrollIdleTimer = window.setTimeout(() => {
+                    isScrolling = false;
+                }, 120);
+            },
+            { passive: true }
+        );
         const observer = new IntersectionObserver(
             (entries) => {
                 isVisible = entries[0].isIntersecting;
             },
-            { threshold: 0.05 }
+            // Slightly higher than before so the globe doesn't start rendering
+            // on the very first peek, but still fires before the intro
+            // ScrollTrigger so the reveal is visible.
+            { threshold: 0.15 }
         );
         observer.observe(section);
 
@@ -694,7 +843,7 @@ const jobs = [
 
         function animate() {
             requestAnimationFrame(animate);
-            if (!isVisible) return;
+            if (!isVisible || isScrolling) return;
 
             const t = performance.now() * 0.001;
 
@@ -808,6 +957,11 @@ const jobs = [
             camera.aspect = width / height;
             camera.updateProjectionMatrix();
             renderer.setSize(width, height, false);
+            // Re-anchor the globe's resting X to the new viewport layout,
+            // but don't fight GSAP mid-intro.
+            if (!gsap.isTweening(globeGroup.position)) {
+                globeGroup.position.x = computeRestingWorldX();
+            }
         };
         window.addEventListener('resize', onResize);
         const ro = new ResizeObserver(onResize);

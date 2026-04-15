@@ -929,10 +929,20 @@
     // ============================================
     let time = 0;
     let isFirstFrame = true; // Flag para el primer frame
-    
+    // Delta-time clock: at a steady 60fps, getDelta() ≈ 0.01667, so multiplying
+    // by 0.72 yields ~0.012 per frame — identical to the previous fixed step.
+    // On slower frames the increment scales up, so motion stays smooth instead
+    // of appearing frozen during scroll-induced frame drops.
+    const animClock = new THREE.Clock();
+    // Cap delta to avoid huge jumps after tab-switch / long frames (e.g., 1s
+    // pause shouldn't advance animation by 1s worth of motion).
+    const MAX_DELTA = 1 / 20; // ~50ms, equivalent to 20fps floor
+
     function animate() {
         requestAnimationFrame(animate);
-        time += 0.012;
+        const rawDelta = animClock.getDelta();
+        const delta = rawDelta > MAX_DELTA ? MAX_DELTA : rawDelta;
+        time += delta * 0.72;
         
         // En el primer frame, ya no necesitamos ajustar porque la posición se calcula
         // correctamente en initScrollAnimations basándose en el scroll actual
