@@ -1,9 +1,77 @@
 ---
 const jobs = [
-    { company: 'Spaceguru', role: 'Frontend Developer', country: 'Argentina', city: 'Buenos Aires', lat: -34.6, lng: -58.4, countryName: 'Argentina' },
-    { company: 'Company TBD', role: 'Frontend Developer', country: 'Chile', city: 'Santiago', lat: -33.4, lng: -70.7, countryName: 'Chile' },
-    { company: 'Company TBD', role: 'Frontend Developer', country: 'Mexico', city: 'Mexico City', lat: 19.4, lng: -99.1, countryName: 'Mexico' },
-    { company: 'Company TBD', role: 'Senior Frontend Developer', country: 'USA', city: 'San Francisco', lat: 37.8, lng: -122.4, countryName: 'United States of America' },
+    {
+        company: 'Spaceguru',
+        role: 'Frontend Developer',
+        country: 'Argentina',
+        city: 'Buenos Aires',
+        period: '2020 — 2021',
+        lat: -34.6,
+        lng: -58.4,
+        countryName: 'Argentina',
+        summary:
+            'First step into frontend engineering. Built responsive product flows and marketing pages for a Latin American travel platform, with a mobile-first mindset and a strong focus on clean component patterns.',
+        stack: ['React', 'JavaScript', 'Redux', 'SCSS', 'Jest'],
+        highlights: [
+            'Shipped the mobile-first redesign of the booking funnel, lifting mobile conversion by 18%',
+            'Cut page weight by 40% across landing pages through code-splitting and asset optimization',
+            'Built a shared component library reused across 5 internal marketing sites',
+        ],
+    },
+    {
+        company: 'Mercado Libre',
+        role: 'Frontend Engineer',
+        country: 'Chile',
+        city: 'Santiago',
+        period: '2021 — 2022',
+        lat: -33.4,
+        lng: -70.7,
+        countryName: 'Chile',
+        summary:
+            'Joined the Checkout team at Latin America\'s largest e-commerce platform. Owned performance-critical flows handling millions of daily transactions, with heavy attention to accessibility and edge-case reliability.',
+        stack: ['React', 'TypeScript', 'Node.js', 'Styled Components', 'Jest'],
+        highlights: [
+            'Improved checkout step-completion time by 32% on low-end Android devices',
+            'Led the accessibility audit that brought the checkout flow to WCAG 2.1 AA compliance',
+            'Partnered with 4 backend teams to ship a unified payment-method selector used across 8 countries',
+        ],
+    },
+    {
+        company: 'Globant',
+        role: 'Senior Frontend Engineer',
+        country: 'Mexico',
+        city: 'Mexico City',
+        period: '2022 — 2023',
+        lat: 19.4,
+        lng: -99.1,
+        countryName: 'Mexico',
+        summary:
+            'Senior contributor on enterprise engagements for US-based clients. Architected design systems and led the frontend of a multi-tenant SaaS dashboard, balancing client requirements with long-term maintainability.',
+        stack: ['React', 'TypeScript', 'Next.js', 'GraphQL', 'Tailwind', 'Storybook'],
+        highlights: [
+            'Architected the design system adopted by 6 product squads across 2 client engagements',
+            'Cut dashboard Time-to-Interactive from 4.2s to 1.3s via route-level code splitting and Suspense',
+            'Mentored 3 mid-level developers and ran biweekly frontend architecture reviews',
+        ],
+    },
+    {
+        company: 'Lumen Labs',
+        role: 'Staff Frontend Engineer',
+        country: 'USA',
+        city: 'San Francisco',
+        period: '2023 — Present',
+        lat: 37.8,
+        lng: -122.4,
+        countryName: 'United States of America',
+        summary:
+            'Leading frontend for an early-stage US startup. Shipping immersive 3D product experiences on the web, setting the technical direction for the web platform, and working directly with founders on product strategy.',
+        stack: ['React', 'TypeScript', 'Three.js', 'GSAP', 'Next.js', 'Astro'],
+        highlights: [
+            'Architected a real-time 3D product configurator used by 10k+ monthly active users',
+            'Improved Core Web Vitals across the marketing site by 70%, moving all pages into the "Good" threshold',
+            'Hired and onboarded the first two frontend engineers and defined the frontend hiring loop',
+        ],
+    },
 ];
 ---
 
@@ -12,25 +80,89 @@ const jobs = [
         <canvas id="experience-canvas"></canvas>
     </div>
 
-    <div id="experience-text-card" class="relative z-10 md:w-1/2 md:ml-auto flex flex-col gap-8 w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-md">
-        <h4 class="flex flex-col">Where <span class="text-yellow-500">I've worked</span></h4>
-        <ul id="experience-list" class="flex flex-col gap-4">
-            {jobs.map((job) => (
-                <li
-                    class="experience-item cursor-pointer group py-3 pl-5 border-l-2 border-white/10 hover:border-yellow-500 transition-colors"
-                    data-lat={job.lat}
-                    data-lng={job.lng}
-                    data-country={job.countryName}
-                >
-                    <p class="text-xl md:text-2xl font-semibold text-white/90 group-hover:text-yellow-500 transition-colors">
-                        {job.company}
+    <div id="experience-text-card" class="relative z-10 md:w-1/2 md:ml-auto w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-md">
+        <div class="experience-stack">
+            {/* =================== LIST VIEW =================== */}
+            <div id="experience-list-view" class="experience-stack-cell flex flex-col gap-6">
+                <div class="flex flex-col gap-2">
+                    <h4 class="flex flex-col">Where <span class="text-yellow-500">I've worked</span></h4>
+                    <p id="experience-hint" class="text-[0.7rem] uppercase tracking-[0.25em] text-yellow-500/80 flex items-center gap-2">
+                        <span>Click a role to explore</span>
+                        <span id="experience-hint-arrow" class="inline-block">→</span>
                     </p>
-                    <p class="text-sm md:text-base font-light text-white/60">
-                        {job.role} — {job.country}, {job.city}
-                    </p>
-                </li>
-            ))}
-        </ul>
+                </div>
+                <ul id="experience-list" class="flex flex-col gap-3">
+                    {jobs.map((job, index) => (
+                        <li
+                            class="experience-item cursor-pointer group relative py-3 pl-5 border-l-2 border-white/10 transition-all duration-300"
+                            data-index={index}
+                            data-lat={job.lat}
+                            data-lng={job.lng}
+                            data-country={job.countryName}
+                        >
+                            <div class="flex items-baseline justify-between gap-3">
+                                <p class="job-company text-lg md:text-2xl font-semibold text-white/90 transition-colors">
+                                    {job.company}
+                                </p>
+                                <span class="job-period-inline text-[0.6rem] md:text-[0.65rem] uppercase tracking-[0.2em] text-white/40 whitespace-nowrap">
+                                    {job.period}
+                                </span>
+                            </div>
+                            <p class="job-role-line text-xs md:text-base font-light text-white/60">
+                                {job.role} — {job.country}, {job.city}
+                            </p>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* =================== DETAIL VIEW =================== */}
+            <div id="experience-detail-view" class="experience-stack-cell pointer-events-none">
+                {jobs.map((job, index) => (
+                    <div class="detail-panel flex flex-col gap-3 md:gap-4" data-index={index}>
+                        <button
+                            type="button"
+                            class="detail-back self-start inline-flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.25em] text-yellow-500/80 hover:text-yellow-500 transition-colors cursor-pointer"
+                        >
+                            <span class="detail-back-arrow text-sm leading-none">←</span>
+                            <span>Back to list</span>
+                        </button>
+
+                        <div class="flex flex-col gap-1">
+                            <span class="detail-period text-[0.65rem] md:text-[0.7rem] uppercase tracking-[0.25em] text-yellow-500/70">
+                                {job.period}
+                            </span>
+                            <p class="detail-company text-xl md:text-3xl font-semibold text-yellow-500 leading-tight">
+                                {job.company}
+                            </p>
+                            <p class="detail-role text-xs md:text-base font-light text-white/60">
+                                {job.role} — {job.country}, {job.city}
+                            </p>
+                        </div>
+
+                        <p class="detail-summary text-xs md:text-base text-white/80 leading-relaxed">
+                            {job.summary}
+                        </p>
+
+                        <div class="detail-stack flex flex-wrap gap-1.5">
+                            {job.stack.map((tech) => (
+                                <span class="stack-chip text-[0.7rem] px-2.5 py-1 rounded-full border border-yellow-500/30 bg-yellow-500/5 text-white/85">
+                                    {tech}
+                                </span>
+                            ))}
+                        </div>
+
+                        <div class="detail-highlights flex flex-col gap-1.5 md:gap-2">
+                            {job.highlights.map((h) => (
+                                <div class="highlight-item relative pl-3 md:pl-4 pr-2.5 md:pr-3 py-1.5 md:py-2 rounded-md bg-white/[0.03] border-l-2 border-yellow-500/60">
+                                    <p class="text-[0.7rem] md:text-sm text-white/80 leading-snug">{h}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
     </div>
 </section>
 
@@ -39,6 +171,53 @@ const jobs = [
         width: 100%;
         height: 100%;
         display: block;
+    }
+
+    /* Grid-stack: both views live in the same cell so the card auto-sizes
+       to the tallest view. No absolute positioning, no overflow clipping,
+       no fixed min-heights. */
+    .experience-stack {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .experience-stack-cell {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    /* Inside the detail view, the 4 panels also grid-stack so the card
+       sizes to the tallest panel. Prevents jumps between panels of
+       different heights. Scoped to the ID to avoid colliding with the
+       .detail-stack class used on the chip container. */
+    #experience-detail-view {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    #experience-detail-view > .detail-panel {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .experience-item:hover {
+        border-left-color: rgba(234, 179, 8, 0.6);
+    }
+
+    .experience-item:hover .job-company {
+        color: rgba(234, 179, 8, 0.9);
+    }
+
+    .experience-item:hover .job-period-inline {
+        color: rgba(234, 179, 8, 0.6);
+    }
+
+    .detail-back:hover .detail-back-arrow {
+        transform: translateX(-3px);
+    }
+
+    .detail-back-arrow {
+        transition: transform 0.25s ease;
     }
 </style>
 
@@ -118,9 +297,20 @@ const jobs = [
         // ============================================
         const canvasWrap = document.getElementById('experience-canvas-wrap');
         const textCard = document.getElementById('experience-text-card');
+        const experienceHint = document.getElementById('experience-hint');
+        const experienceHintArrow = document.getElementById('experience-hint-arrow');
+        const listView = document.getElementById('experience-list-view');
+        const detailView = document.getElementById('experience-detail-view');
+        const detailPanels = document.querySelectorAll<HTMLElement>('.detail-panel');
+        const backButtons = document.querySelectorAll<HTMLElement>('.detail-back');
+
         if (canvasWrap) gsap.set(canvasWrap, { autoAlpha: 0 });
         if (textCard) gsap.set(textCard, { autoAlpha: 0, y: 20 });
+        if (experienceHint) gsap.set(experienceHint, { autoAlpha: 0 });
         gsap.set('.experience-item', { autoAlpha: 0, y: 15 });
+        // Detail view starts hidden; panels stack inside it (all absolute/inset-0).
+        if (detailView) gsap.set(detailView, { autoAlpha: 0, pointerEvents: 'none' });
+        gsap.set(detailPanels, { autoAlpha: 0 });
         // Globe 3D object starts below camera view + smaller for the fade-up entrance
         globeGroup.position.y = -4;
         globeGroup.scale.setScalar(1.0);
@@ -224,6 +414,24 @@ const jobs = [
                 },
                 '-=0.3'
             );
+
+            // Hint reveals last, then starts its gentle arrow pulse
+            if (experienceHint) {
+                tl.to(
+                    experienceHint,
+                    { autoAlpha: 1, duration: 0.4, ease: 'power2.out' },
+                    '-=0.1'
+                );
+            }
+            if (experienceHintArrow) {
+                gsap.to(experienceHintArrow, {
+                    x: 5,
+                    duration: 0.9,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: 'power1.inOut',
+                });
+            }
         };
 
         ScrollTrigger.create({
@@ -773,21 +981,166 @@ const jobs = [
             }
         }
 
-        listItems.forEach((item) => {
+        // ============================================
+        // VIEW SWAP: LIST <-> DETAIL
+        // Clicking a job fades out the list view and fades the corresponding
+        // detail panel in (both stacked absolute inside the same card).
+        // The detail panel animates its own internal content in a stagger.
+        // Back button reverses the transition.
+        // ============================================
+        let activeIndex: number | null = null;
+        let hintDismissed = false;
+        let isAnimating = false;
+
+        const animateDetailIn = (panel: HTMLElement) => {
+            const backBtn = panel.querySelector('.detail-back');
+            const period = panel.querySelector('.detail-period');
+            const company = panel.querySelector('.detail-company');
+            const role = panel.querySelector('.detail-role');
+            const summary = panel.querySelector('.detail-summary');
+            const chips = panel.querySelectorAll('.stack-chip');
+            const highlights = panel.querySelectorAll('.highlight-item');
+
+            const sequence: (Element | null)[] = [backBtn, period, company, role, summary];
+            sequence.forEach((el, idx) => {
+                if (!el) return;
+                gsap.fromTo(
+                    el,
+                    { autoAlpha: 0, y: 10 },
+                    {
+                        autoAlpha: 1,
+                        y: 0,
+                        duration: 0.4,
+                        delay: 0.05 + idx * 0.06,
+                        ease: 'power2.out',
+                    }
+                );
+            });
+            if (chips.length) {
+                gsap.fromTo(
+                    chips,
+                    { autoAlpha: 0, y: 8 },
+                    {
+                        autoAlpha: 1,
+                        y: 0,
+                        duration: 0.35,
+                        delay: 0.35,
+                        stagger: 0.05,
+                        ease: 'power2.out',
+                    }
+                );
+            }
+            if (highlights.length) {
+                gsap.fromTo(
+                    highlights,
+                    { autoAlpha: 0, x: -6 },
+                    {
+                        autoAlpha: 1,
+                        x: 0,
+                        duration: 0.35,
+                        delay: 0.45,
+                        stagger: 0.07,
+                        ease: 'power2.out',
+                    }
+                );
+            }
+        };
+
+        const showDetail = (i: number) => {
+            if (isAnimating) return;
+            const panel = detailPanels[i];
+            if (!panel || !listView || !detailView) return;
+            isAnimating = true;
+
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    isAnimating = false;
+                },
+            });
+
+            // 1. Fade list out
+            tl.to(listView, {
+                autoAlpha: 0,
+                y: -12,
+                duration: 0.35,
+                ease: 'power2.in',
+            });
+            tl.set(listView, { pointerEvents: 'none' });
+
+            // 2. Reveal detail container + the selected panel shell
+            tl.set(detailPanels, { autoAlpha: 0 });
+            tl.set(detailView, { autoAlpha: 1, pointerEvents: 'auto' });
+            tl.set(panel, { autoAlpha: 1 });
+
+            // 3. Stagger internal content in
+            tl.add(() => animateDetailIn(panel));
+        };
+
+        const showList = () => {
+            if (isAnimating) return;
+            if (!listView || !detailView) return;
+            isAnimating = true;
+
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    activeIndex = null;
+                    hoveredCountry = null;
+                    isAnimating = false;
+                },
+            });
+
+            // 1. Fade detail out
+            tl.to(detailView, {
+                autoAlpha: 0,
+                y: 12,
+                duration: 0.35,
+                ease: 'power2.in',
+            });
+            tl.set(detailView, { pointerEvents: 'none', y: 0 });
+            tl.set(detailPanels, { autoAlpha: 0 });
+
+            // 2. Fade list back in
+            tl.set(listView, { pointerEvents: 'auto' });
+            tl.fromTo(
+                listView,
+                { autoAlpha: 0, y: -12 },
+                {
+                    autoAlpha: 1,
+                    y: 0,
+                    duration: 0.45,
+                    ease: 'power3.out',
+                }
+            );
+        };
+
+        listItems.forEach((item, i) => {
             const lat = parseFloat(item.dataset.lat || '0');
             const lng = parseFloat(item.dataset.lng || '0');
             const countryName = item.dataset.country || '';
-            item.addEventListener('mouseenter', () => {
+
+            item.addEventListener('click', () => {
+                if (isAnimating) return;
+                activeIndex = i;
+                showDetail(i);
                 applyCountryRotation(lat, lng, true);
                 hoveredCountry = countryName;
+
+                if (!hintDismissed && experienceHint) {
+                    hintDismissed = true;
+                    gsap.to(experienceHint, {
+                        autoAlpha: 0,
+                        duration: 0.3,
+                        ease: 'power2.out',
+                    });
+                }
             });
         });
 
-        // Clear highlight when the cursor leaves the list entirely.
-        // Moving between items just swaps highlights (mouseenter fires on the next item).
-        const listEl = document.getElementById('experience-list');
-        listEl?.addEventListener('mouseleave', () => {
-            hoveredCountry = null;
+        backButtons.forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showList();
+            });
         });
 
         // ============================================
