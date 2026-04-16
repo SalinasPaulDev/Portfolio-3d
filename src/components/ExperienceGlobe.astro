@@ -80,7 +80,7 @@ const jobs = [
         <canvas id="experience-canvas"></canvas>
     </div>
 
-    <div id="experience-text-card" class="relative z-10 md:w-1/2 md:ml-auto w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-md">
+    <div id="experience-text-card" class="relative z-10 md:w-1/2 md:ml-auto w-full max-w-2xl p-6 md:p-8 rounded-2xl bg-black/30 backdrop-blur-[2px]">
         <div class="experience-stack">
             {/* =================== LIST VIEW =================== */}
             <div id="experience-list-view" class="experience-stack-cell flex flex-col gap-6">
@@ -337,7 +337,7 @@ const jobs = [
         const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
         const computeIntroStartWorldX = () => worldXForScreenFraction(0.5);
         const computeRestingWorldX = () =>
-            worldXForScreenFraction(isDesktop() ? 0.33 : 0.5);
+            worldXForScreenFraction(isDesktop() ? 0.28 : 0.5);
 
         // Start the globe centered — the intro timeline will slide it left.
         globeGroup.position.x = computeIntroStartWorldX();
@@ -904,10 +904,15 @@ const jobs = [
         // ============================================
         // LOAD ASSETS
         // ============================================
+        const globeTracker = (window as any).__assetTracker;
+        // Register 2 assets: triangle template for globe, earth-globe.glb
+        if (globeTracker) globeTracker.register(2);
+
         const loader = new GLTFLoader();
 
         loader.load('/triangles/py-lod7.glb', (triTpl) => {
             const triangleTemplate = triTpl.scene;
+            if (globeTracker) globeTracker.complete();
 
             loader.load('/earth-globe.glb', async (earthGltf) => {
                 // Make sure the land + country classifiers are ready before we build
@@ -948,6 +953,7 @@ const jobs = [
                 // Deferred into the intro timeline (see tryStartIntro) so the
                 // reveal spin lands exactly on the first-job orientation.
                 globeLoaded = true;
+                if (globeTracker) globeTracker.complete();
                 tryStartIntro();
             });
         });

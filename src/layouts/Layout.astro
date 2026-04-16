@@ -25,8 +25,73 @@ import Canvas from '../components/Canvas/Canvas.astro';
 		<meta name="linkedin:description" content="Brian Paul Salinas - Front end developer. Portfolio created with Astro and 3D models applying crean code, SEO good practices and Three.js library." />
 		<meta name="linkedin:image" content="https://brianpauldev.com/og-image.jpg" />
 	
+		<!-- Asset tracker must exist before any bundled script runs -->
+		<script is:inline>
+			window.__assetTracker = {
+				total: 0,
+				loaded: 0,
+				_startTime: Date.now(),
+				_displayPct: 0,
+				_targetPct: 0,
+				_done: false,
+				_rafId: null,
+				register: function(count) {
+					this.total += count;
+				},
+				complete: function() {
+					this.loaded++;
+					this._targetPct = this.total > 0 ? (this.loaded / this.total) * 100 : 0;
+					if (!this._rafId) this._animate();
+				},
+				_animate: function() {
+					var self = this;
+					function tick() {
+						// Lerp display toward target
+						self._displayPct += (self._targetPct - self._displayPct) * 0.15;
+
+						// Snap when close enough
+						if (Math.abs(self._targetPct - self._displayPct) < 0.5) {
+							self._displayPct = self._targetPct;
+						}
+
+						var rounded = Math.round(self._displayPct);
+						var fill = document.getElementById('loading-bar-fill');
+						var text = document.getElementById('loading-percent');
+						if (fill) fill.style.width = rounded + '%';
+						if (text) text.textContent = rounded + '%';
+
+						// Check if fully loaded and display caught up
+						if (self.loaded >= self.total && self._displayPct >= 100 && !self._done) {
+							self._done = true;
+							self._rafId = null;
+							var elapsed = Date.now() - self._startTime;
+							var remaining = Math.max(0, 500 - elapsed);
+							setTimeout(function() {
+								window.dispatchEvent(new CustomEvent('assets-ready'));
+							}, remaining);
+							return;
+						}
+
+						self._rafId = requestAnimationFrame(tick);
+					}
+					this._rafId = requestAnimationFrame(tick);
+				}
+			};
+		</script>
 	</head>
 	<body>
+		<!-- Loading Screen -->
+		<div id="loading-screen">
+			<div id="loading-content">
+				<div id="loading-title">Brian Paul <span>Salinas</span></div>
+				<p id="loading-subtitle">Front end developer</p>
+				<div id="loading-bar-track">
+					<div id="loading-bar-fill"></div>
+				</div>
+				<p id="loading-percent">0%</p>
+			</div>
+		</div>
+
 		<Canvas />
 		<main class="content">
 			<slot />
@@ -89,4 +154,109 @@ import Canvas from '../components/Canvas/Canvas.astro';
   90% { transform: translate3d(7rem, -2rem, 0); }
   100% { transform: translate3d(-3rem, 5rem, 0); }
 }
+
+	/* Loading Screen */
+	#loading-screen {
+		position: fixed;
+		inset: 0;
+		z-index: 10000;
+		background: #0a0a0a;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: all;
+	}
+
+	#loading-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	#loading-title {
+		font-family: 'CabinetGrotesk', sans-serif;
+		font-weight: 700;
+		font-size: clamp(2rem, 5vw + 1rem, 5rem);
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #ffffff;
+		text-align: center;
+	}
+
+	#loading-title span {
+		display: block;
+	}
+
+	#loading-subtitle {
+		font-family: 'Switzer', sans-serif;
+		font-size: 1.25rem;
+		color: #eab308;
+		font-weight: 400;
+	}
+
+	#loading-bar-track {
+		width: clamp(200px, 40vw, 360px);
+		height: 2px;
+		background: rgba(255, 255, 255, 0.1);
+		border-radius: 1px;
+		overflow: hidden;
+		margin-top: 1.5rem;
+	}
+
+	#loading-bar-fill {
+		height: 100%;
+		width: 0%;
+		background: #8b5cf6;
+		border-radius: 1px;
+	}
+
+	#loading-percent {
+		font-family: 'Switzer', sans-serif;
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.4);
+		font-variant-numeric: tabular-nums;
+	}
 </style>
+
+<script>
+	import { gsap } from 'gsap';
+
+	// ============================================
+	// LOADING SCREEN — HIDE ANIMATION
+	// ============================================
+	function hideLoadingScreen() {
+		const screen = document.getElementById('loading-screen');
+		if (!screen || screen.dataset.hiding) return;
+		screen.dataset.hiding = 'true';
+
+		gsap.to('#loading-content', {
+			scale: 0.9,
+			opacity: 0,
+			duration: 0.3,
+			ease: 'power2.in',
+		});
+
+		gsap.to(screen, {
+			opacity: 0,
+			duration: 0.4,
+			delay: 0.1,
+			ease: 'power2.inOut',
+			onComplete: () => {
+				screen.style.display = 'none';
+				screen.style.pointerEvents = 'none';
+			}
+		});
+	}
+
+	// Listen for the custom event dispatched by the inline tracker
+	window.addEventListener('assets-ready', hideLoadingScreen);
+
+	// Fallback: if assets never finish loading (error), hide after 5s
+	setTimeout(() => {
+		const screen = document.getElementById('loading-screen');
+		if (screen && screen.style.display !== 'none') {
+			hideLoadingScreen();
+		}
+	}, 5000);
+</script>

@@ -271,8 +271,12 @@
     // ============================================
     // CARGAR MODELO PRINCIPAL Y TRIÁNGULOS PARA PARTÍCULAS
     // ============================================
+    const tracker = (window as any).__assetTracker;
+    // Register 3 assets: triangle template, dev.glb model, floating triangles
+    if (tracker) tracker.register(3);
+
     const loader = new GLTFLoader();
-    
+
     let triangleTemplate: THREE.Group | null = null;
     const trianglesColors = [
         0x96F7D2,  // Turquesa
@@ -282,31 +286,34 @@
         0x6F00FF,  // Morado
         0xFF69B4   // Rosa
     ];
-    
+
     // Primero cargamos el triángulo que usaremos como partícula
     loader.load('/triangles/py-lod7.glb', function(gltf) {
         triangleTemplate = gltf.scene;
         console.log('✅ Triángulo cargado para partículas');
-        
+        if (tracker) tracker.complete();
+
         // Ahora cargamos el modelo principal para generar posiciones
         loader.load(
             '/dev.glb',
-            function(gltf) {            
+            function(gltf) {
                 gltf.scene.scale.setScalar(0.2);
                 gltf.scene.position.set(0, 0, 0);
-                
+
                 const positions = generateEdgeParticles(gltf.scene);
-                
+
                 if (positions.count === 0) {
                     console.error('❌ No se encontraron vértices');
+                    if (tracker) tracker.complete();
                     return;
                 }
-                
+
                 console.log(`📊 Partículas generadas: ${positions.count}`);
-                
+
                 if (triangleTemplate) {
                     createTriangleParticleSystem(positions, triangleTemplate);
                 }
+                if (tracker) tracker.complete();
             },
             function(xhr) {
                 const percent = (xhr.loaded / xhr.total) * 100;
@@ -314,6 +321,7 @@
             },
             function(error) {
                 console.error('❌ Error al cargar:', error);
+                if (tracker) tracker.complete();
             }
         );
     });
@@ -458,6 +466,7 @@
             
             sceneBackground.add(clone);
         }
+        if (tracker) tracker.complete();
     });
 
     // ============================================

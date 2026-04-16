@@ -54,10 +54,10 @@ import ExperienceGlobe from '../components/ExperienceGlobe.astro';
 	// Register ScrollTrigger plugin
 	gsap.registerPlugin(ScrollTrigger);
 
-	function initScrollAnimations() {
-		// ============================================
-		// Hero Section - Sophisticated entrance with timeline
-		// ============================================
+	// ============================================
+	// Hero Section - plays AFTER loading screen dismisses
+	// ============================================
+	function playHeroEntrance() {
 		const heroTimeline = gsap.timeline({
 			defaults: { ease: 'power3.out' }
 		});
@@ -82,7 +82,20 @@ import ExperienceGlobe from '../components/ExperienceGlobe.astro';
 				scale: 0.9,
 				duration: 1,
 			}, '-=0.5');
+	}
 
+	// Hide hero elements until loader is gone
+	gsap.set('#main h1, #main p, #main button', { visibility: 'hidden' });
+
+	window.addEventListener('assets-ready', () => {
+		// Small delay so the loading screen fade-out is underway
+		setTimeout(() => {
+			gsap.set('#main h1, #main p, #main button', { visibility: 'visible' });
+			playHeroEntrance();
+		}, 100);
+	}, { once: true });
+
+	function initScrollAnimations() {
 		// ============================================
 		// Introduction Section - Timeline with ScrollTrigger
 		// ============================================
